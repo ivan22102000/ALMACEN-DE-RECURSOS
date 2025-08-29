@@ -1,0 +1,1629 @@
+
+
+### Prompt Súper Detallado para KIVO Store (con Manejo de Imágenes como URLs)
+
+**Objetivo**: Crear una tienda online completa llamada **KIVO Store** para Bolivia, con un sistema de fidelidad basado en "fichas" tipo "Bitcoin" que usa códigos QR dinámicos impresos en etiquetas (18mm x 18mm por defecto, ajustable a 25mm o 40mm). La tienda debe ser fácil de usar, ya que muchos clientes no se registran, y debe incluir un panel de administración robusto para gestionar compras, productos y fichas. Todo debe estar en **español**, usar colores **violeta (#6C63FF)** para botones, encabezados y bordes, y **blanco (#FFFFFF)** para fondos, ser **responsive** para móviles y computadoras, y funcionar con herramientas gratuitas: **Supabase** (base de datos PostgreSQL, 500 MB), **Cloudinary** (imágenes, 25 GB, solo URLs en DB), **Vercel** (frontend), y **Render** (backend con crons). El sistema debe ser seguro, optimizado, y compatible con impresoras térmicas portátiles (Brother/Zebra) o PDFs para los QRs. Las imágenes de productos se almacenan en Cloudinary, y solo se guarda la **URL** en la base de datos, pero en la vista del cliente se muestra la imagen cargada desde esa URL.
+
+---
+
+### Requerimientos Generales
+
+1. **Idioma**:
+   - Todo en español: interfaz, comentarios en el código, y archivo README.
+   - Usa términos claros como "Canjear Ficha", "Añadir Producto", "Historial", etc., para usuarios en Bolivia.
+
+2. **Costo Cero**:
+   - Usa planes gratuitos:
+     - **Supabase**: Base de datos PostgreSQL (500 MB, 1 GB ancho de banda/mes).
+     - **Cloudinary**: Almacenamiento de imágenes (25 GB, carpeta `kivo/productos`).
+     - **Vercel**: Despliegue frontend gratis.
+     - **Render**: Backend y crons (750 horas/mes gratis).
+   - Mantén la base de datos por debajo de 500 MB con limpiezas automáticas.
+
+3. **Diseño**:
+   - Colores: **Violeta (#6C63FF)** para botones, bordes, encabezados; **blanco (#FFFFFF)** para fondos de páginas, modales, tablas.
+   - Fuente: **Arial** para todo el texto, con sans-serif como respaldo.
+   - Responsive: En móviles, las tablas colapsan (muestran solo `cod_compra`, fecha, acciones; resto al hacer clic). En computadoras, se ven todas las columnas.
+   - Usa **Tailwind CSS** instalado localmente (no CDN), con colores violeta y blanco definidos.
+   - Modales: Fondo blanco, borde violeta (#6C63FF), botones violeta con texto blanco.
+
+4. **Seguridad**:
+   - Autenticación con **JWT** para el panel de administración (`/admin`), solo para usuarios con `es_administrador = true`.
+   - Admin por defecto: correo `admin@kivo.com`, contraseña `password` (encriptada con bcrypt).
+   - Tokens de fichas en QRs: Encriptados con **SHA-256**.
+   - Registra acciones sensibles (subida de imágenes, canje de fichas, limpiezas) en tabla `auditoria`.
+   - Claves secretas (Supabase, Cloudinary) en archivos `.env`, nunca en frontend.
+
+5. **Optimización**:
+   - Carga 10-20 registros por consulta en listas/tablas (como historial o productos).
+   - Usa **Zod** para validar formularios (productos, ajustes).
+   - Usa "error boundaries" en React para evitar fallos en la interfaz.
+   - Limpieza automática en Supabase para no superar 500 MB:
+     - **Fichas**: Elimina `canjeado` o `expirado` cada 32 días.
+     - **Pedidos**: Archiva en `pedidos_archivo` y elimina cada 6 meses.
+     - **Auditoría**: Elimina cada 3 meses.
+   - Ping a Supabase cada 2 días (`SELECT id FROM fichas LIMIT 1`) para evitar pausa del plan gratuito.
+
+6. **Manejo de Imágenes**:
+   - Las imágenes de productos se suben a **Cloudinary** (carpeta `kivo/productos`, preset sin firmar).
+   - En la base de datos (`imagenes_productos`), solo se almacena la **URL** de la imagen (por ejemplo, `https://res.cloudinary.com/kivo/image/upload/v1234567890/kivo/productos/abc123.jpg`).
+   - En la vista del cliente (como en `TarjetaProducto.tsx` o `Productos.tsx`), la imagen se muestra cargando la URL desde Cloudinary con una etiqueta `<img src={url_imagen} />`.
+   - Si no hay URL, muestra una imagen por defecto (`/assets/imagen_por_defecto.png`).
+   - Validación: Solo JPEG/PNG, máximo 5 MB, en `validarImagenes.ts`.
+
+7. **Despliegue**:
+   - **Frontend**: Vercel, con `vercel.json` para rutas.
+   - **Backend**: Render, con `render.yaml` para servidor y crons.
+   - **Base de Datos**: Supabase, con esquema SQL.
+   - **Imágenes**: Cloudinary, carpeta `kivo/productos`.
+
+---
+
+### Funcionalidades Específicas
+
+1. **Sistema de Fichas Tipo "Bitcoin"**:
+   - **Fichas**: Puntos de fidelidad. Por defecto: 1 ficha por compra, 5 fichas dan 10% de descuento (configurable en ajustes).
+   - **Códigos QR**:
+     - Contenido: JSON `{ "cod_ficha": "token_abc123", "cod_compra": "KIVO-xyz456" }`, con `cod_ficha` encriptado en SHA-256.
+     - Estilo "Bitcoin": Fondo blanco, código negro, borde violeta (#6C63FF) de 1mm. Opcional: logo KIVO (SVG con texto "KIVO" en violeta) en una esquina.
+     - Tamaño: 18mm x 18mm (100px a 150 DPI) por defecto, ajustable a 25mm (140px) o 40mm (220px).
+     - Impresión: En impresoras térmicas portátiles (Brother/Zebra, USB/Bluetooth) usando SVG/PNG, o PDF con `jsPDF` (formato 18mm x 18mm).
+   - **Generación**:
+     - Automática: Al marcar un pedido como `entregado`, si `modo_automatico = true` en `config_fichas`.
+     - Manual: Modal en el panel de admin con mensaje: "¿Generar ficha para KIVO-xyz456?".
+   - **Canje**:
+     - **Web**: En `/canjear`, el cliente ingresa `cod_compra` para validar y obtener descuento.
+     - **Manual**: Admin escanea QR con cámara del celular en `EscanerQR.tsx`.
+   - **Expiración**: 30 días desde creación (configurable).
+   - Registra generación/canje en `auditoria`.
+
+2. **Panel de Administración** (`/admin`, `PanelAdmin.tsx`):
+   - Acceso: Solo para usuarios con `es_administrador = true`.
+   - Pestañas: Pedidos, Fichas, Inventario, Ajustes.
+   - **Pedidos**: Lista de pedidos (`pedidos`) con columnas: `cod_compra`, fecha, cliente, total, estado, acciones (cambiar estado a `pendiente`, `procesando`, `enviado`, `entregado`, `cancelado`).
+   - **Fichas**: Tabla responsiva (`AdminFichas.tsx`) con historial: `cod_compra`, fecha, cliente, total, ficha (token o "Sin ficha"), estado (`activo`, `canjeado`, `expirado`), acciones (generar QR, canjear).
+   - **Inventario**: Formulario (`AdminInventario.tsx`) para añadir/editar productos, con subida de imágenes a Cloudinary (solo guarda URL).
+   - **Ajustes**: Configura modo de fichas (manual/automático), tamaño QR, fichas por compra, fichas para descuento, porcentaje de descuento (`AdminAjustes.tsx`).
+   - Modal: Fondo blanco, borde violeta, para confirmar generación manual de fichas.
+
+3. **Historial en Tabla** (`AdminFichas.tsx`):
+   - Columnas: `cod_compra` (ej. KIVO-xyz456), fecha (dd/MM/yyyy), cliente, total (BOB), ficha (token o "Sin ficha"), estado, acciones (botones "Generar Ficha", "Escanear QR").
+   - Filtros: Por estado, fecha, o búsqueda por `cod_compra`.
+   - Responsive: En móviles, muestra solo `cod_compra`, fecha, acciones; resto en detalle al hacer clic.
+   - Paginación: 10 registros por página, botones "Anterior/Siguiente".
+
+4. **Temporizadores para Promociones**:
+   - En `productos`, si hay promoción activa (`promociones.fecha_fin`), muestra un temporizador en `TarjetaProducto.tsx`.
+   - Hook `useTemporizadorPromo.ts`: Muestra tiempo restante en formato `Xd Yh` (días, horas), actualiza cada hora.
+   - UI: Badge violeta (#6C63FF) con texto blanco (ej. "Oferta: 2d 5h") en la esquina superior derecha de la tarjeta del producto.
+
+5. **Canje de Fichas**:
+   - **Web** (`CanjearFichas.tsx`): Input para `cod_compra`, valida contra `fichas`, aplica descuento si es válido.
+   - **Manual** (`EscanerQR.tsx`): Admin escanea QR, valida `cod_ficha` y `cod_compra`.
+   - Auditoría: Registra canjes en `auditoria` (acción: `canje_ficha` o `error_canje`).
+
+6. **Impresión de QRs**:
+   - Genera QRs en SVG/PNG con `qrcode` para impresoras térmicas (Brother/Zebra).
+   - Genera PDFs con `jsPDF` (18mm x 18mm, borde violeta).
+   - Estilo "Bitcoin": Fondo blanco, código negro, borde violeta.
+
+7. **Limpieza Automática**:
+   - **Fichas**: Elimina `canjeado` o `expira_en < CURRENT_TIMESTAMP` cada 32 días.
+   - **Pedidos**: Archiva en `pedidos_archivo` y elimina cada 6 meses.
+   - **Auditoría**: Elimina cada 3 meses.
+   - Crons en Render: `limpiarFichas.ts` (`0 4 1 * *`), `limpiarPedidos.ts` (`0 4 1 */6 *`), `limpiarAuditoria.ts` (`0 4 1 */3 *`).
+   - Registra limpiezas en `auditoria`.
+
+8. **Ping a Supabase**:
+   - `pingSupabase.ts`: `GET /fichas?select=id&limit=1` cada 2 días (`0 4 */2 * *`).
+   - Evita pausa del plan gratuito.
+
+---
+
+### Estructura de Carpetas Completa
+
+```
+KIVO_store/
+├── client/                             # Frontend (React + Vite)
+│   ├── src/
+│   │   ├── assets/                     # Recursos estáticos
+│   │   │   ├── logo.svg                # Logo KIVO (texto "KIVO" en violeta #6C63FF)
+│   │   │   ├── imagen_por_defecto.png  # Imagen por defecto para productos sin URL
+│   │   ├── componentes/                # Componentes reutilizables
+│   │   │   ├── AdminFichas.tsx         # Tabla historial, modal, canje
+│   │   │   ├── EscanerQR.tsx           # Escanear QR con cámara
+│   │   │   ├── AdminAjustes.tsx        # Ajustes modo, tamaño QR, descuentos
+│   │   │   ├── AdminInventario.tsx     # Añadir/editar productos
+│   │   │   ├── SubidaImagenes.tsx      # Subir imágenes a Cloudinary (guarda URL)
+│   │   │   ├── TarjetaProducto.tsx     # Tarjeta producto con temporizador
+│   │   │   ├── PanelAdmin.tsx          # Panel principal admin
+│   │   ├── paginas/                    # Páginas principales
+│   │   │   ├── CanjearFichas.tsx       # Canje web (anónimo/con cuenta)
+│   │   │   ├── Admin.tsx               # Entrada panel admin
+│   │   │   ├── Productos.tsx           # Catálogo productos
+│   │   │   ├── Inicio.tsx              # Página de inicio
+│   │   │   ├── Carrito.tsx             # Carrito de compras
+│   │   │   ├── Pago.tsx                # Proceso de pago
+│   │   │   ├── Perfil.tsx              # Perfil usuario (opcional)
+│   │   ├── hooks/                      # Hooks personalizados
+│   │   │   ├── useHistorial.ts         # Historial compras/fichas
+│   │   │   ├── useEscaner.ts           # Cámara para canje manual
+│   │   │   ├── useProductos.ts         # Gestión productos
+│   │   │   ├── useAutenticacion.ts     # Autenticación admin
+│   │   │   ├── useCarrito.ts           # Gestión carrito
+│   │   │   ├── useTemporizadorPromo.ts # Temporizador promociones
+│   │   ├── utilidades/                 # Funciones útiles
+│   │   │   ├── generarEtiqueta.ts      # QR (SVG/PNG/PDF) para térmica
+│   │   │   ├── formatearMoneda.ts      # Formatear precios (BOB)
+│   │   │   ├── validarImagenes.ts      # Validación imágenes
+│   │   ├── config/                     # Configuraciones
+│   │   │   ├── supabase.ts             # Cliente Supabase
+│   │   ├── estilos/                    # Estilos
+│   │   │   ├── tailwind.css            # Estilos Tailwind
+│   │   │   ├── admin.css               # Estilos admin (violeta/blanco)
+│   │   ├── App.tsx                     # Componente principal
+│   │   ├── main.tsx                    # Entrada React
+│   │   ├── index.css                   # Estilos globales
+│   ├── index.html                      # HTML principal
+│   ├── vite.config.ts                  # Configuración Vite
+│   ├── tailwind.config.ts              # Configuración Tailwind
+│   ├── postcss.config.js               # PostCSS para Tailwind
+│   ├── .env.example                    # Ejemplo variables entorno
+│   ├── package.json                    # Dependencias frontend
+│   ├── tsconfig.json                   # Configuración TypeScript
+├── servidor/                           # Backend (Express + Node.js)
+│   ├── src/
+│   │   ├── rutas/                      # Rutas API
+│   │   │   ├── fichas.ts               # Historial, canje, generación
+│   │   │   ├── productos.ts            # CRUD productos
+│   │   │   ├── pedidos.ts              # Gestión compras
+│   │   │   ├── subida.ts               # Subida imágenes Cloudinary
+│   │   ├── utilidades/                 # Funciones útiles
+│   │   │   ├── generarQR.ts            # QR dinámico
+│   │   │   ├── pingSupabase.ts         # Ping cada 2 días
+│   │   │   ├── limpiarFichas.ts        # Limpieza fichas (32 días)
+│   │   │   ├── limpiarPedidos.ts       # Archivar pedidos (6 meses)
+│   │   │   ├── limpiarAuditoria.ts     # Limpieza auditoría (3 meses)
+│   │   ├── configuracion/              # Configuraciones
+│   │   │   ├── baseDatos.ts            # Conexión Supabase
+│   │   │   ├── cloudinary.ts           # Configuración Cloudinary
+│   │   ├── index.ts                    # Entrada servidor
+│   ├── drizzle.config.ts               # Configuración Drizzle ORM
+│   ├── .env.example                    # Ejemplo variables entorno
+│   ├── package.json                    # Dependencias backend
+│   ├── tsconfig.json                   # Configuración TypeScript
+├── .github/                            # GitHub Actions (opcional)
+├── render.yaml                         # Configuración Render
+├── vercel.json                         # Configuración Vercel
+├── README.md                           # Instrucciones
+├── .gitignore                          # Archivos ignorados
+├── package.json                        # Dependencias raíz
+├── esquema.sql                         # Esquema DB (Supabase)
+```
+
+---
+
+### Códigos del Frontend (client/)
+
+A continuación, detallo cada archivo del frontend (`client/`) con su contenido exacto, propósito, y cómo maneja las imágenes (solo URLs en la base de datos, mostrando la imagen en la vista). Cada archivo está escrito en TypeScript, usa Tailwind CSS, y sigue los colores violeta (#6C63FF) y blanco (#FFFFFF).
+
+1. **client/vite.config.ts**  
+   **Propósito**: Configura Vite para el frontend con React.  
+   **Contenido**:
+   ```
+   import { defineConfig } from 'vite';
+   import react from '@vitejs/plugin-react';
+
+   export default defineConfig({
+     plugins: [react()],
+     base: '/',
+   });
+   ```
+
+2. **client/tailwind.config.ts**  
+   **Propósito**: Define los colores personalizados (violeta y blanco) para Tailwind CSS.  
+   **Contenido**:
+   ```
+   import { type Config } from 'tailwindcss';
+
+   export default {
+     content: ['./src/**/*.{js,ts,jsx,tsx}'],
+     theme: {
+       extend: {
+         colors: {
+           primary: '#6C63FF', // Violeta
+           secondary: '#FFFFFF', // Blanco
+         },
+       },
+     },
+     plugins: [],
+   } as Config;
+   ```
+
+3. **client/postcss.config.js**  
+   **Propósito**: Configura PostCSS para procesar Tailwind CSS y añadir prefijos automáticos.  
+   **Contenido**:
+   ```
+   module.exports = {
+     plugins: [
+       require('tailwindcss'),
+       require('autoprefixer'),
+     ],
+   };
+   ```
+
+4. **client/.env.example**  
+   **Propósito**: Ejemplo de variables de entorno para Supabase y el backend.  
+   **Contenido**:
+   ```
+   VITE_SUPABASE_URL=your_supabase_url
+   VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+   VITE_API_URL=your_render_backend_url
+   ```
+
+5. **client/index.html**  
+   **Propósito**: Archivo HTML principal que carga la aplicación React.  
+   **Contenido**:
+   ```
+   <!doctype html>
+   <html lang="es">
+     <head>
+       <meta charset="UTF-8" />
+       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+       <title>KIVO Store</title>
+     </head>
+     <body>
+       <div id="root"></div>
+       <script type="module" src="/src/main.tsx"></script>
+     </body>
+   </html>
+   ```
+
+6. **client/src/index.css**  
+   **Propósito**: Estilos globales con Tailwind y fuente Arial.  
+   **Contenido**:
+   ```
+   @tailwind base;
+   @tailwind components;
+   @tailwind utilities;
+
+   body {
+     font-family: 'Arial', sans-serif;
+     background-color: #FFFFFF;
+     color: #333333;
+   }
+   ```
+
+7. **client/src/main.tsx**  
+   **Propósito**: Punto de entrada de React, renderiza la aplicación.  
+   **Contenido**:
+   ```
+   import React from 'react';
+   import ReactDOM from 'react-dom/client';
+   import App from './App.tsx';
+   import './index.css';
+
+   ReactDOM.createRoot(document.getElementById('root')!).render(
+     <React.StrictMode>
+       <App />
+     </React.StrictMode>,
+   );
+   ```
+
+8. **client/src/App.tsx**  
+   **Propósito**: Define las rutas principales de la aplicación con React Router.  
+   **Contenido**:
+   ```
+   import React from 'react';
+   import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+   import Admin from './pages/Admin.tsx';
+   import CanjearFichas from './pages/CanjearFichas.tsx';
+   import Productos from './pages/Productos.tsx';
+   import Inicio from './pages/Inicio.tsx';
+   import Carrito from './pages/Carrito.tsx';
+   import Pago from './pages/Pago.tsx';
+   import Perfil from './pages/Perfil.tsx';
+
+   const App: React.FC = () => {
+     return (
+       <Router>
+         <Routes>
+           <Route path="/" element={<Inicio />} />
+           <Route path="/admin" element={<Admin />} />
+           <Route path="/canjear" element={<CanjearFichas />} />
+           <Route path="/productos" element={<Productos />} />
+           <Route path="/carrito" element={<Carrito />} />
+           <Route path="/pago" element={<Pago />} />
+           <Route path="/perfil" element={<Perfil />} />
+         </Routes>
+       </Router>
+     );
+   };
+
+   export default App;
+   ```
+
+9. **client/src/estilos/admin.css**  
+   **Propósito**: Estilos específicos para el panel de administración, con responsividad para tablas.  
+   **Contenido**:
+   ```
+   .admin-container {
+     background-color: #FFFFFF;
+     color: #333333;
+     padding: 1rem;
+   }
+
+   .admin-button {
+     background-color: #6C63FF;
+     color: #FFFFFF;
+     padding: 0.5rem 1rem;
+     border-radius: 0.25rem;
+   }
+
+   .admin-table {
+     width: 100%;
+     border-collapse: collapse;
+     margin-top: 1rem;
+   }
+
+   .admin-table th {
+     background-color: #6C63FF;
+     color: #FFFFFF;
+     padding: 0.5rem;
+   }
+
+   .admin-table td {
+     border: 1px solid #6C63FF;
+     padding: 0.5rem;
+   }
+
+   .admin-modal {
+     background-color: #FFFFFF;
+     border: 2px solid #6C63FF;
+     padding: 1.5rem;
+     border-radius: 0.5rem;
+   }
+
+   @media (max-width: 640px) {
+     .admin-table th:not(:nth-child(1)):not(:nth-child(2)):not(:nth-child(7)),
+     .admin-table td:not(:nth-child(1)):not(:nth-child(2)):not(:nth-child(7)) {
+       display: none;
+     }
+   }
+   ```
+
+10. **client/src/estilos/tailwind.css**  
+    **Propósito**: Base para importar Tailwind CSS.  
+    **Contenido**:
+    ```
+    @tailwind base;
+    @tailwind components;
+    @tailwind utilities;
+    ```
+
+11. **client/src/config/supabase.ts**  
+    **Propósito**: Configura el cliente de Supabase para conectar con la base de datos.  
+    **Contenido**:
+    ```
+    import { createClient } from '@supabase/supabase-js';
+
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+    export const supabase = createClient(supabaseUrl, supabaseKey);
+    ```
+
+12. **client/src/utilidades/formatearMoneda.ts**  
+    **Propósito**: Formatea precios en bolivianos (BOB) para la interfaz.  
+    **Contenido**:
+    ```
+    export const formatearMoneda = (monto: number): string => {
+      return new Intl.NumberFormat('es-BO', { style: 'currency', currency: 'BOB' }).format(monto);
+    };
+    ```
+
+13. **client/src/utilidades/validarImagenes.ts**  
+    **Propósito**: Valida que las imágenes subidas sean JPEG/PNG y menores a 5 MB antes de enviar a Cloudinary.  
+    **Contenido**:
+    ```
+    export const validarImagenes = (file: File): boolean => {
+      const validTypes = ['image/jpeg', 'image/png'];
+      const maxSize = 5 * 1024 * 1024; // 5MB
+      if (!validTypes.includes(file.type) || file.size > maxSize) {
+        return false;
+      }
+      return true;
+    };
+    ```
+
+14. **client/src/utilidades/generarEtiqueta.ts**  
+    **Propósito**: Genera códigos QR para las fichas con estilo "Bitcoin" (fondo blanco, código negro, borde violeta) y los prepara para impresoras térmicas o PDFs.  
+    **Contenido**:
+    ```
+    import QRCode from 'qrcode';
+    import jsPDF from 'jspdf';
+
+    export const generarEtiqueta = async (codFicha: string, codCompra: string, tamano: string = '18mm') => {
+      const qrData = JSON.stringify({ cod_ficha: codFicha, cod_compra: codCompra });
+      const qrSize = tamano === '18mm' ? 100 : tamano === '25mm' ? 140 : 220; // px a 150 DPI
+
+      const qrImage = await QRCode.toDataURL(qrData, { 
+        width: qrSize, 
+        margin: 1, 
+        color: { dark: '#000000', light: '#FFFFFF' } 
+      });
+
+      // Simula envío a impresora térmica (Brother/Zebra)
+      console.log('Enviando QR a impresora térmica:', qrImage);
+
+      // PDF como respaldo
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: [18, 18],
+      });
+      doc.addImage(qrImage, 'PNG', 0, 0, 18, 18);
+      doc.rect(0, 0, 18, 18, 'S'); // Borde violeta
+      doc.setDrawColor(108, 99, 255); // #6C63FF
+      doc.save(`etiqueta_${codCompra}.pdf`);
+
+      return qrImage;
+    };
+    ```
+
+15. **client/src/hooks/useAutenticacion.ts**  
+    **Propósito**: Gestiona la autenticación del admin con Supabase Auth.  
+    **Contenido**:
+    ```
+    import { useState, useEffect } from 'react';
+    import { supabase } from '../config/supabase';
+
+    export const useAutenticacion = () => {
+      const [user, setUser] = useState<any>(null);
+      const [loading, setLoading] = useState(true);
+
+      useEffect(() => {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          setUser(session?.user ?? null);
+          setLoading(false);
+        });
+
+        const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+          setUser(session?.user ?? null);
+          setLoading(false);
+        });
+
+        return () => listener.subscription.unsubscribe();
+      }, []);
+
+      const login = async (email: string, password: string) => {
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        return data;
+      };
+
+      const logout = async () => {
+        await supabase.auth.signOut();
+      };
+
+      return { user, login, logout, loading };
+    };
+    ```
+
+16. **client/src/hooks/useCarrito.ts**  
+    **Propósito**: Gestiona el carrito de compras, permite añadir, actualizar y eliminar productos.  
+    **Contenido**:
+    ```
+    import { useState, useEffect } from 'react';
+    import { supabase } from '../config/supabase';
+
+    export const useCarrito = () => {
+      const [carrito, setCarrito] = useState<any[]>([]);
+
+      useEffect(() => {
+        const fetchCarrito = async () => {
+          const { data, error } = await supabase.from('carrito').select(`
+            *,
+            productos (nombre, precio, imagenes_productos (url_imagen))
+          `);
+          if (error) console.error(error);
+          setCarrito(data || []);
+        };
+        fetchCarrito();
+      }, []);
+
+      const addToCarrito = async (productoId: string, quantity: number) => {
+        const { data, error } = await supabase.from('carrito').insert([{ producto_id: productoId, cantidad: quantity }]);
+        if (error) throw error;
+        setCarrito([...carrito, data[0]]);
+      };
+
+      const updateQuantity = async (id: string, quantity: number) => {
+        const { error } = await supabase.from('carrito').update({ cantidad: quantity }).eq('id', id);
+        if (error) throw error;
+        setCarrito(carrito.map(item => item.id === id ? { ...item, cantidad: quantity } : item));
+      };
+
+      const removeFromCarrito = async (id: string) => {
+        const { error } = await supabase.from('carrito').delete().eq('id', id);
+        if (error) throw error;
+        setCarrito(carrito.filter(item => item.id !== id));
+      };
+
+      return { carrito, addToCarrito, updateQuantity, removeFromCarrito };
+    };
+    ```
+
+17. **client/src/hooks/useProductos.ts**  
+    **Propósito**: Carga los productos desde la base de datos, incluyendo la URL de la imagen principal.  
+    **Contenido**:
+    ```
+    import { useState, useEffect } from 'react';
+    import { supabase } from '../config/supabase';
+
+    export const useProductos = () => {
+      const [productos, setProductos] = useState<any[]>([]);
+      const [loading, setLoading] = useState(true);
+
+      useEffect(() => {
+        const fetchProductos = async () => {
+          const { data, error } = await supabase.from('productos').select(`
+            *,
+            imagenes_productos (url_imagen, es_principal),
+            promociones (porcentaje_descuento, fecha_fin)
+          `).eq('esta_activo', true);
+          if (error) console.error(error);
+          setProductos(data || []);
+          setLoading(false);
+        };
+        fetchProductos();
+      }, []);
+
+      return { productos, loading };
+    };
+    ```
+
+18. **client/src/hooks/useTemporizadorPromo.ts**  
+    **Propósito**: Muestra el tiempo restante de una promoción en formato "Xd Yh".  
+    **Contenido**:
+    ```
+    import { useState, useEffect } from 'react';
+
+    export const useTemporizadorPromo = (endDate: Date) => {
+      const [timeLeft, setTimeLeft] = useState('');
+
+      useEffect(() => {
+        const interval = setInterval(() => {
+          const now = new Date();
+          const difference = endDate.getTime() - now.getTime();
+          if (difference > 0) {
+            const days = Math.floor(difference / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((difference / (1000 * 60 * 60)) % 24);
+            setTimeLeft(`${days}d ${hours}h`);
+          } else {
+            setTimeLeft('Expirado');
+            clearInterval(interval);
+          }
+        }, 3600000); // Cada hora
+
+        return () => clearInterval(interval);
+      }, [endDate]);
+
+      return timeLeft;
+    };
+    ```
+
+19. **client/src/hooks/useEscaner.ts**  
+    **Propósito**: Permite escanear códigos QR con la cámara del celular para canje manual.  
+    **Contenido**:
+    ```
+    import { useState, useRef } from 'react';
+    import jsQR from 'jsqr';
+
+    export const useEscaner = () => {
+      const [result, setResult] = useState<string | null>(null);
+      const videoRef = useRef<HTMLVideoElement>(null);
+
+      const startScan = () => {
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }).then(stream => {
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+            videoRef.current.play().then(() => {
+              requestAnimationFrame(scan);
+            });
+          }
+        }).catch(err => console.error('Error cámara:', err));
+      };
+
+      const scan = () => {
+        if (videoRef.current && videoRef.current.videoHeight > 0) {
+          const canvas = document.createElement('canvas');
+          canvas.width = videoRef.current.videoWidth;
+          canvas.height = videoRef.current.videoHeight;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height);
+            if (code) {
+              setResult(code.data);
+              return;
+            }
+          }
+        }
+        requestAnimationFrame(scan);
+      };
+
+      return { result, startScan, videoRef };
+    };
+    ```
+
+20. **client/src/hooks/useHistorial.ts**  
+    **Propósito**: Carga el historial de compras y fichas con paginación (10 registros).  
+    **Contenido**:
+    ```
+    import { useState, useEffect } from 'react';
+    import { supabase } from '../config/supabase';
+
+    interface HistorialItem {
+      codigo_compra: string;
+      creado_en: string;
+      nombre_cliente: string;
+      total: number;
+      ficha?: { token: string; estado: string };
+    }
+
+    export const useHistorial = () => {
+      const [historial, setHistorial] = useState<HistorialItem[]>([]);
+      const [loading, setLoading] = useState(true);
+      const [error, setError] = useState<string | null>(null);
+
+      useEffect(() => {
+        const fetchHistorial = async () => {
+          try {
+            const { data, error } = await supabase
+              .from('pedidos')
+              .select(`
+                codigo_compra,
+                creado_en,
+                nombre_cliente,
+                total,
+                fichas (token, estado)
+              `)
+              .order('creado_en', { ascending: false })
+              .range(0, 9);
+            if (error) throw error;
+            setHistorial(data || []);
+          } catch (err) {
+            setError('Error cargando historial');
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        fetchHistorial();
+      }, []);
+
+      return { historial, loading, error };
+    };
+    ```
+
+21. **client/src/components/AdminFichas.tsx**  
+    **Propósito**: Muestra el historial de fichas en una tabla responsiva, con modal para generación manual y opción para canjear con cámara.  
+    **Contenido**:
+    ```
+    import React, { useState } from 'react';
+    import { useHistorial } from '../hooks/useHistorial';
+    import EscanerQR from './EscanerQR';
+    import { supabase } from '../config/supabase';
+    import { format } from 'date-fns';
+    import { generarEtiqueta } from '../utilidades/generarEtiqueta';
+    import { formatearMoneda } from '../utilidades/formatearMoneda';
+
+    const AdminFichas: React.FC = () => {
+      const { historial, loading, error } = useHistorial();
+      const [showModal, setShowModal] = useState(false);
+      const [selectedCompra, setSelectedCompra] = useState<string | null>(null);
+
+      const handleGenerateFicha = async (codCompra: string) => {
+        setSelectedCompra(codCompra);
+        setShowModal(true);
+      };
+
+      const confirmFicha = async () => {
+        if (selectedCompra) {
+          try {
+            const { error } = await supabase.rpc('generar_codigo_y_ficha', { codigo_compra: selectedCompra });
+            if (error) throw error;
+            const { data: ficha } = await supabase.from('fichas').select('token').eq('codigo_compra', selectedCompra).single();
+            if (ficha) {
+              await generarEtiqueta(ficha.token, selectedCompra);
+            }
+            setShowModal(false);
+            setSelectedCompra(null);
+          } catch (err) {
+            alert('Error generando ficha');
+          }
+        }
+      };
+
+      return (
+        <div className="p-4 bg-white text-gray-800">
+          <h1 className="text-2xl font-bold text-[#6C63FF] mb-4">Historial de Fichas</h1>
+          {loading && <p>Cargando...</p>}
+          {error && <p className="text-red-500">{error}</p>}
+          <table className="admin-table">
+            <thead>
+              <tr className="bg-[#6C63FF] text-white">
+                <th className="p-2">Cód. Compra</th>
+                <th className="p-2">Fecha</th>
+                <th className="p-2">Cliente</th>
+                <th className="p-2">Total</th>
+                <th className="p-2">Ficha</th>
+                <th className="p-2">Estado</th>
+                <th className="p-2">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {historial.map((item) => (
+                <tr key={item.codigo_compra} className="border-b">
+                  <td className="p-2">{item.codigo_compra}</td>
+                  <td className="p-2">{format(new Date(item.creado_en), 'dd/MM/yyyy')}</td>
+                  <td className="p-2">{item.nombre_cliente}</td>
+                  <td className="p-2">{formatearMoneda(item.total)}</td>
+                  <td className="p-2">{item.ficha?.token || 'Sin ficha'}</td>
+                  <td className="p-2">{item.ficha?.estado || '-'}</td>
+                  <td className="p-2">
+                    <button
+                      className="admin-button mr-2"
+                      onClick={() => handleGenerateFicha(item.codigo_compra)}
+                    >
+                      Generar Ficha
+                    </button>
+                    <EscanerQR codigoCompra={item.codigo_compra} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {showModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+              <div className="admin-modal">
+                <h2 className="text-xl text-[#6C63FF] mb-4">¿Generar ficha para {selectedCompra}?</h2>
+                <div className="flex justify-end">
+                  <button className="admin-button mr-2" onClick={confirmFicha}>
+                    Sí
+                  </button>
+                  <button className="bg-gray-300 text-black px-4 py-2 rounded" onClick={() => setShowModal(false)}>
+                    No
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    export default AdminFichas;
+    ```
+
+22. **client/src/components/EscanerQR.tsx**  
+    **Propósito**: Permite al admin escanear un QR con la cámara para canjear una ficha manualmente.  
+    **Contenido**:
+    ```
+    import React from 'react';
+    import { useEscaner } from '../hooks/useEscaner';
+    import { supabase } from '../config/supabase';
+
+    const EscanerQR: React.FC<{ codigoCompra: string }> = ({ codigoCompra }) => {
+      const { result, startScan, videoRef } = useEscaner();
+
+      const handleCanje = async (qrData: string) => {
+        try {
+          const { cod_ficha } = JSON.parse(qrData);
+          const { error } = await supabase.rpc('canje_ficha', { cod_ficha, cod_compra: codigoCompra });
+          if (error) throw error;
+          alert('Ficha canjeada');
+        } catch (err) {
+          alert('Error al canjear');
+        }
+      };
+
+      if (result) handleCanje(result);
+
+      return (
+        <div>
+          <button onClick={startScan} className="admin-button">
+            Escanear QR
+          </button>
+          <video ref={videoRef} className="hidden" />
+        </div>
+      );
+    };
+
+    export default EscanerQR;
+    ```
+
+23. **client/src/components/AdminAjustes.tsx**  
+    **Propósito**: Formulario para configurar el sistema de fichas (modo, tamaño QR, descuentos).  
+    **Contenido**:
+    ```
+    import React, { useState, useEffect } from 'react';
+    import { supabase } from '../config/supabase';
+    import { z } from 'zod';
+
+    const configSchema = z.object({
+      modo_automatico: z.boolean(),
+      tamano_qr: z.enum(['18mm', '25mm', '40mm']),
+      fichas_por_compra: z.number().min(1),
+      fichas_para_descuento: z.number().min(1),
+      porcentaje_descuento: z.number().min(0).max(100),
+    });
+
+    const AdminAjustes: React.FC = () => {
+      const [form, setForm] = useState({
+        modo_automatico: false,
+        tamano_qr: '18mm',
+        fichas_por_compra: 1,
+        fichas_para_descuento: 5,
+        porcentaje_descuento: 10,
+      });
+
+      useEffect(() => {
+        const fetchConfig = async () => {
+          const { data } = await supabase.from('config_fichas').select('*').order('creado_en', { ascending: false }).limit(1);
+          if (data && data[0]) setForm(data[0]);
+        };
+        fetchConfig();
+      }, []);
+
+      const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+          configSchema.parse(form);
+          await supabase.from('config_fichas').upsert(form);
+          alert('Ajustes guardados');
+        } catch (err) {
+          alert('Error en los datos');
+        }
+      };
+
+      return (
+        <div className="p-4 bg-white text-gray-800">
+          <h1 className="text-2xl font-bold text-[#6C63FF] mb-4">Ajustes de Fichas</h1>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <label className="flex items-center">
+              Modo Automático
+              <input type="checkbox" checked={form.modo_automatico} onChange={(e) => setForm({ ...form, modo_automatico: e.target.checked })} className="ml-2" />
+            </label>
+            <label className="flex items-center">
+              Tamaño QR
+              <select value={form.tamano_qr} onChange={(e) => setForm({ ...form, tamano_qr: e.target.value })} className="ml-2 p-1 border border-[#6C63FF] rounded">
+                <option value="18mm">18mm</option>
+                <option value="25mm">25mm</option>
+                <option value="40mm">40mm</option>
+              </select>
+            </label>
+            <label>
+              Fichas por Compra
+              <input
+                type="number"
+                value={form.fichas_por_compra}
+                onChange={(e) => setForm({ ...form, fichas_por_compra: parseInt(e.target.value) })}
+                className="w-full p-2 border border-[#6C63FF] rounded"
+              />
+            </label>
+            <label>
+              Fichas para Descuento
+              <input
+                type="number"
+                value={form.fichas_para_descuento}
+                onChange={(e) => setForm({ ...form, fichas_para_descuento: parseInt(e.target.value) })}
+                className="w-full p-2 border border-[#6C63FF] rounded"
+              />
+            </label>
+            <label>
+              Porcentaje Descuento
+              <input
+                type="number"
+                value={form.porcentaje_descuento}
+                onChange={(e) => setForm({ ...form, porcentaje_descuento: parseFloat(e.target.value) })}
+                className="w-full p-2 border border-[#6C63FF] rounded"
+              />
+            </label>
+            <button type="submit" className="admin-button">
+              Guardar
+            </button>
+          </form>
+        </div>
+      );
+    };
+
+    export default AdminAjustes;
+    ```
+
+24. **client/src/components/AdminInventario.tsx**  
+    **Propósito**: Formulario para añadir/editar productos, con subida de imágenes a Cloudinary (guarda solo URL).  
+    **Contenido**:
+    ```
+    import React, { useState } from 'react';
+    import { supabase } from '../config/supabase';
+    import SubidaImagenes from './SubidaImagenes';
+    import { z } from 'zod';
+
+    const productoSchema = z.object({
+      nombre: z.string().min(1, 'Nombre requerido'),
+      descripcion: z.string().optional(),
+      precio: z.number().min(0, 'Precio inválido'),
+      stock: z.number().min(0, 'Stock inválido'),
+      categoria_id: z.string().uuid().optional(),
+      sku: z.string().min(1, 'SKU requerido'),
+      porcentaje_descuento: z.number().min(0).max(100).optional(),
+    });
+
+    const AdminInventario: React.FC = () => {
+      const [form, setForm] = useState({
+        nombre: '',
+        descripcion: '',
+        precio: 0,
+        stock: 0,
+        categoria_id: '',
+        sku: '',
+        porcentaje_descuento: 0,
+      });
+      const [productoId, setProductoId] = useState<string | null>(null);
+
+      const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+          productoSchema.parse(form);
+          const { data, error } = await supabase.from('productos').insert([form]).select();
+          if (error) throw error;
+          setProductoId(data[0].id);
+          alert('Producto añadido');
+          setForm({ nombre: '', descripcion: '', precio: 0, stock: 0, categoria_id: '', sku: '', porcentaje_descuento: 0 });
+        } catch (err) {
+          alert('Error añadiendo producto');
+        }
+      };
+
+      return (
+        <div className="p-4 bg-white text-gray-800">
+          <h1 className="text-2xl font-bold text-[#6C63FF] mb-4">Añadir Producto</h1>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <input
+              type="text"
+              placeholder="Nombre"
+              value={form.nombre}
+              onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+              className="w-full p-2 border border-[#6C63FF] rounded"
+            />
+            <textarea
+              placeholder="Descripción"
+              value={form.descripcion}
+              onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
+              className="w-full p-2 border border-[#6C63FF] rounded"
+            />
+            <input
+              type="number"
+              placeholder="Precio (BOB)"
+              value={form.precio}
+              onChange={(e) => setForm({ ...form, precio: parseFloat(e.target.value) })}
+              className="w-full p-2 border border-[#6C63FF] rounded"
+            />
+            <input
+              type="number"
+              placeholder="Stock"
+              value={form.stock}
+              onChange={(e) => setForm({ ...form, stock: parseInt(e.target.value) })}
+              className="w-full p-2 border border-[#6C63FF] rounded"
+            />
+            <input
+              type="text"
+              placeholder="SKU"
+              value={form.sku}
+              onChange={(e) => setForm({ ...form, sku: e.target.value })}
+              className="w-full p-2 border border-[#6C63FF] rounded"
+            />
+            <SubidaImagenes productoId={productoId} />
+            <button type="submit" className="admin-button">
+              Añadir Producto
+            </button>
+          </form>
+        </div>
+      );
+    };
+
+    export default AdminInventario;
+    ```
+
+25. **client/src/components/SubidaImagenes.tsx**  
+    **Propósito**: Sube imágenes a Cloudinary y guarda solo la URL en la tabla `imagenes_productos`.  
+    **Contenido**:
+    ```
+    import React, { useState } from 'react';
+    import { validarImagenes } from '../utilidades/validarImagenes';
+    import { supabase } from '../config/supabase';
+
+    const SubidaImagenes: React.FC<{ productoId: string | null }> = ({ productoId }) => {
+      const [files, setFiles] = useState<File[]>([]);
+
+      const handleUpload = async () => {
+        if (!productoId) {
+          alert('Primero guarda el producto');
+          return;
+        }
+        for (const file of files) {
+          if (!validarImagenes(file)) {
+            alert('Archivo inválido (solo JPEG/PNG, <5MB)');
+            continue;
+          }
+          try {
+            const fileName = `${productoId}/${Date.now()}_${file.name}`;
+            const { data, error } = await supabase.storage
+              .from('imagenes')
+              .upload(`kivo/productos/${fileName}`, file);
+            if (error) throw error;
+            const url = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/imagenes/kivo/productos/${fileName}`;
+            await supabase.from('imagenes_productos').insert([
+              { producto_id: productoId, url_imagen: url, es_principal: files.length === 1 }
+            ]);
+          } catch (err) {
+            alert('Error subiendo imagen');
+          }
+        }
+        setFiles([]);
+      };
+
+      return (
+        <div>
+          <input
+            type="file"
+            multiple
+            accept="image/jpeg,image/png"
+            onChange={(e) => setFiles(Array.from(e.target.files || []))}
+            className="w-full p-2 border border-[#6C63FF] rounded"
+          />
+          <button onClick={handleUpload} className="admin-button mt-2">
+            Subir Imágenes
+          </button>
+        </div>
+      );
+    };
+
+    export default SubidaImagenes;
+    ```
+
+26. **client/src/components/TarjetaProducto.tsx**  
+    **Propósito**: Muestra una tarjeta de producto con nombre, descripción, precio, y la imagen cargada desde la URL de Cloudinary.  
+    **Contenido**:
+    ```
+    import React from 'react';
+    import { formatearMoneda } from '../utilidades/formatearMoneda';
+    import { useTemporizadorPromo } from '../hooks/useTemporizadorPromo';
+
+    const TarjetaProducto: React.FC<{ producto: any }> = ({ producto }) => {
+      const timeLeft = producto.promociones?.fecha_fin ? useTemporizadorPromo(new Date(producto.promociones.fecha_fin)) : '';
+
+      return (
+        <div className="p-4 border border-[#6C63FF] rounded relative">
+          {timeLeft && timeLeft !== 'Expirado' && (
+            <span className="absolute top-2 right-2 bg-[#6C63FF] text-white px-2 py-1 rounded">
+              Oferta: {timeLeft}
+            </span>
+          )}
+          <h2 className="text-xl text-[#6C63FF]">{producto.nombre}</h2>
+          <p>{producto.descripcion}</p>
+          <p>{formatearMoneda(producto.precio)}</p>
+          <img 
+            src={producto.imagenes_productos?.find((img: any) => img.es_principal)?.url_imagen || '/assets/imagen_por_defecto.png'} 
+            alt={producto.nombre} 
+            className="w-full h-48 object-cover mt-2"
+          />
+        </div>
+      );
+    };
+
+    export default TarjetaProducto;
+    ```
+
+27. **client/src/components/PanelAdmin.tsx**  
+    **Propósito**: Panel principal de administración con pestañas para Pedidos, Fichas, Inventario y Ajustes.  
+    **Contenido**:
+    ```
+    import React, { useState, useEffect } from 'react';
+    import { supabase } from '../config/supabase';
+    import { formatearMoneda } from '../utilidades/formatearMoneda';
+    import AdminFichas from './AdminFichas';
+    import AdminAjustes from './AdminAjustes';
+    import AdminInventario from './AdminInventario';
+    import { format } from 'date-fns';
+
+    const PanelAdmin: React.FC = () => {
+      const [pedidos, setPedidos] = useState<any[]>([]);
+      const [activeTab, setActiveTab] = useState('pedidos');
+
+      useEffect(() => {
+        const fetchPedidos = async () => {
+          const { data, error } = await supabase.from('pedidos').select('*').order('creado_en', { ascending: false });
+          if (error) console.error(error);
+          setPedidos(data || []);
+        };
+        fetchPedidos();
+      }, []);
+
+      const handleUpdateEstado = async (id: string, estado: string) => {
+        try {
+          const { error } = await supabase.from('pedidos').update({ estado }).eq('id', id);
+          if (error) throw error;
+          setPedidos(pedidos.map(p => p.id === id ? { ...p, estado } : p));
+        } catch (err) {
+          alert('Error actualizando estado');
+        }
+      };
+
+      return (
+        <div className="p-4 bg-white">
+          <h1 className="text-2xl text-[#6C63FF] mb-4">Panel Admin</h1>
+          <div className="flex space-x-4 mb-4">
+            <button className={`admin-button ${activeTab === 'pedidos' ? 'bg-[#6C63FF]' : 'bg-gray-300'}`} onClick={() => setActiveTab('pedidos')}>
+              Pedidos
+            </button>
+            <button className={`admin-button ${activeTab === 'fichas' ? 'bg-[#6C63FF]' : 'bg-gray-300'}`} onClick={() => setActiveTab('fichas')}>
+              Fichas
+            </button>
+            <button className={`admin-button ${activeTab === 'inventario' ? 'bg-[#6C63FF]' : 'bg-gray-300'}`} onClick={() => setActiveTab('inventario')}>
+              Inventario
+            </button>
+            <button className={`admin-button ${activeTab === 'ajustes' ? 'bg-[#6C63FF]' : 'bg-gray-300'}`} onClick={() => setActiveTab('ajustes')}>
+              Ajustes
+            </button>
+          </div>
+
+          {activeTab === 'pedidos' && (
+            <div>
+              <h2 className="text-xl text-[#6C63FF] mb-4">Pedidos</h2>
+              <table className="admin-table">
+                <thead>
+                  <tr className="bg-[#6C63FF] text-white">
+                    <th className="p-2">Cód. Compra</th>
+                    <th className="p-2">Fecha</th>
+                    <th className="p-2">Cliente</th>
+                    <th className="p-2">Total</th>
+                    <th className="p-2">Estado</th>
+                    <th className="p-2">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pedidos.map((pedido) => (
+                    <tr key={pedido.id} className="border-b">
+                      <td className="p-2">{pedido.codigo_compra}</td>
+                      <td className="p-2">{format(new Date(pedido.creado_en), 'dd/MM/yyyy')}</td>
+                      <td className="p-2">{pedido.nombre_cliente}</td>
+                      <td className="p-2">{formatearMoneda(pedido.total)}</td>
+                      <td className="p-2">{pedido.estado}</td>
+                      <td className="p-2">
+                        <select
+                          value={pedido.estado}
+                          onChange={(e) => handleUpdateEstado(pedido.id, e.target.value)}
+                          className="border border-[#6C63FF] rounded p-1"
+                        >
+                          <option value="pendiente">Pendiente</option>
+                          <option value="procesando">Procesando</option>
+                          <option value="enviado">Enviado</option>
+                          <option value="entregado">Entregado</option>
+                          <option value="cancelado">Cancelado</option>
+                        </select>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {activeTab === 'fichas' && <AdminFichas />}
+          {activeTab === 'inventario' && <AdminInventario />}
+          {activeTab === 'ajustes' && <AdminAjustes />}
+        </div>
+      );
+    };
+
+    export default PanelAdmin;
+    ```
+
+28. **client/src/pages/Inicio.tsx**  
+    **Propósito**: Página de bienvenida con productos destacados (primeros 6), mostrando imágenes desde URLs.  
+    **Contenido**:
+    ```
+    import React from 'react';
+    import { useProductos } from '../hooks/useProductos';
+    import TarjetaProducto from '../components/TarjetaProducto';
+
+    const Inicio: React.FC = () => {
+      const { productos, loading } = useProductos();
+
+      return (
+        <div className="p-4 bg-white">
+          <h1 className="text-2xl text-[#6C63FF] mb-4">Bienvenido a KIVO Store</h1>
+          {loading && <p>Cargando...</p>}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {productos.slice(0, 6).map((producto) => (
+              <TarjetaProducto key={producto.id} producto={producto} />
+            ))}
+          </div>
+        </div>
+      );
+    };
+
+    export default Inicio;
+    ```
+
+29. **client/src/pages/CanjearFichas.tsx**  
+    **Propósito**: Página para que los clientes canjeen fichas ingresando el código de compra.  
+    **Contenido**:
+    ```
+    import React, { useState } from 'react';
+    import { supabase } from '../config/supabase';
+    import { z } from 'zod';
+
+    const canjeSchema = z.object({
+      codigo: z.string().min(1, 'Código requerido'),
+    });
+
+    const CanjearFichas: React.FC = () => {
+      const [codigo, setCodigo] = useState('');
+      const [error, setError] = useState<string | null>(null);
+
+      const handleCanje = async () => {
+        try {
+          canjeSchema.parse({ codigo });
+          const { data, error } = await supabase.rpc('canje_ficha', { cod_compra: codigo });
+          if (error) throw error;
+          alert('Ficha canjeada');
+          setCodigo('');
+        } catch (err) {
+          setError('Código inválido');
+        }
+      };
+
+      return (
+        <div className="p-4 bg-white">
+          <h1 className="text-2xl text-[#6C63FF] mb-4">Canjear Ficha</h1>
+          {error && <p className="text-red-500">{error}</p>}
+          <input
+            type="text"
+            value={codigo}
+            onChange={(e) => setCodigo(e.target.value)}
+            placeholder="Código de compra"
+            className="w-full p-2 border border-[#6C63FF] rounded"
+          />
+          <button onClick={handleCanje} className="admin-button mt-4">
+            Canjear
+          </button>
+        </div>
+      );
+    };
+
+    export default CanjearFichas;
+    ```
+
+30. **client/src/pages/Productos.tsx**  
+    **Propósito**: Muestra el catálogo completo de productos en una cuadrícula, con imágenes desde URLs.  
+    **Contenido**:
+    ```
+    import React from 'react';
+    import { useProductos } from '../hooks/useProductos';
+    import TarjetaProducto from '../components/TarjetaProducto';
+
+    const Productos: React.FC = () => {
+      const { productos, loading } = useProductos();
+
+      return (
+        <div className="p-4 bg-white">
+          <h1 className="text-2xl text-[#6C63FF] mb-4">Productos</h1>
+          {loading && <p>Cargando...</p>}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {productos.map((producto) => (
+              <TarjetaProducto key={producto.id} producto={producto} />
+            ))}
+          </div>
+        </div>
+      );
+    };
+
+    export default Productos;
+    ```
+
+31. **client/src/pages/Carrito.tsx**  
+    **Propósito**: Muestra el carrito de compras, permite ajustar cantidades y eliminar productos.  
+    **Contenido**:
+    ```
+    import React from 'react';
+    import { useCarrito } from '../hooks/useCarrito';
+    import { formatearMoneda } from '../utilidades/formatearMoneda';
+    import { Link } from 'react-router-dom';
+
+    const Carrito: React.FC = () => {
+      const { carrito, updateQuantity, removeFromCarrito } = useCarrito();
+
+      return (
+        <div className="p-4 bg-white">
+          <h1 className="text-2xl text-[#6C63FF] mb-4">Carrito</h1>
+          {carrito.length === 0 && <p>Carrito vacío</p>}
+          {carrito.map((item) => (
+            <div key={item.id} className="flex justify-between border-b py-2">
+              <div className="flex items-center">
+                <img 
+                  src={item.productos.imagenes_productos?.[0]?.url_imagen || '/assets/imagen_por_defecto.png'} 
+                  alt={item.productos.nombre} 
+                  className="w-16 h-16 object-cover mr-4"
+                />
+                <div>
+                  <p>{item.productos.nombre}</p>
+                  <p>{formatearMoneda(item.productos.precio * item.cantidad)}</p>
+                </div>
+              </div>
+              <div>
+                <input
+                  type="number"
+                  value={item.cantidad}
+                  onChange={(e) => updateQuantity(item.id, parseInt(e.target.value))}
+                  className="w-16 p-1 border border-[#6C63FF] rounded"
+                />
+                <button onClick={() => removeFromCarrito(item.id)} className="admin-button ml-2">
+                  Eliminar
+                </button>
+              </div>
+            </div>
+          ))}
+          {carrito.length > 0 && (
+            <Link to="/pago" className="admin-button mt-4 inline-block">
+              Proceder al Pago
+            </Link>
+          )}
+        </div>
+      );
+    };
+
+    export default Carrito;
+    ```
+
+32. **client/src/pages/Pago.tsx**  
+    **Propósito**: Procesa la compra, genera un pedido, y muestra un QR para pago (simulado).  
+    **Contenido**:
+    ```
+    import React, { useState } from 'react';
+    import { supabase } from '../config/supabase';
+    import { useCarrito } from '../hooks/useCarrito';
+    import { z } from 'zod';
+
+    const pagoSchema = z.object({
+      nombre_cliente: z.string().min(1, 'Nombre requerido'),
+      correo_cliente: z.string().email('Correo inválido'),
+      telefono_cliente: z.string().optional(),
+      direccion_envio: z.string().min(1, 'Dirección requerida'),
+    });
+
+    const Pago: React.FC = () => {
+      const { carrito } = useCarrito();
+      const [form, setForm] = useState({
+        nombre_cliente: '',
+        correo_cliente: '',
+        telefono_cliente: '',
+        direccion_envio: '',
+      });
+
+      const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+          pagoSchema.parse(form);
+          const total = carrito.reduce((sum, item) => sum + item.productos.precio * item.cantidad, 0);
+          const { data, error } = await supabase.from('pedidos').insert([{
+            ...form,
+            total,
+            estado: 'pendiente',
+            metodo_pago: 'pago_qr',
+            codigo_compra: `KIVO-${Math.random().toString(36).slice(2)}-${Date.now()}`,
+          }]).select();
+          if (error) throw error;
+          await supabase.from('detalles_pedidos').insert(
+            carrito.map(item => ({
+              pedido_id: data[0].id,
+              producto_id: item.producto_id,
+              cantidad: item.cantidad,
+              precio_unitario: item.productos.precio,
+            }))
+          );
+          await supabase.from('carrito').delete().in('id', carrito.map(item => item.id));
+          alert('Compra realizada');
+        } catch (err) {
+          alert('Error procesando pago');
+        }
+      };
+
+      return (
+        <div className="p-4 bg-white">
+          <h1 className="text-2xl text-[#6C63FF] mb-4">Pago</h1>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <input
+              type="text"
+              placeholder="Nombre"
+              value={form.nombre_cliente}
+              onChange={(e) => setForm({ ...form, nombre_cliente: e.target.value })}
+              className="w-full p-2 border border-[#6C63FF] rounded"
+            />
+            <input
+              type="email"
+              placeholder="Correo"
+              value={form.correo_cliente}
+              onChange={(e) => setForm({ ...form, correo_cliente: e.target.value })}
+              className="w-full p-2 border border-[#6C63FF] rounded"
+            />
+            <input
+              type="text"
+              placeholder="Teléfono"
+              value={form.telefono_cliente}
+              onChange={(e) => setForm({ ...form, telefono_cliente: e.target.value })}
+              className="w-full p-2 border border-[#6C63FF] rounded"
+            />
+            <textarea
+              placeholder="Dirección de envío"
+              value={form.direccion_envio}
+              onChange={(e) => setForm({ ...form, direccion_envio: e.target.value })}
+              className="w-full p-2 border border-[#6C63FF] rounded"
+            />
+            <button type="submit" className="admin-button">
+              Pagar
+            </button>
+          </form>
+          <img src="/assets/qr_pago.png" alt="QR Pago" className="mt-4 w-48 h-48" />
+        </div>
+      );
+    };
+
+    export default Pago;
+    ```
+
+33. **client/src/pages/Perfil.tsx**  
+    **Propósito**: Muestra el perfil del usuario registrado (opcional).  
+    **Contenido**:
+    ```
+    import React from 'react';
+    import { useAutenticacion } from '../hooks/useAutenticacion';
+
+    const Perfil: React.FC = () => {
+      const { user, logout } = useAutenticacion();
+
+      if (!user) return <div className="p-4 bg-white">Inicia sesión para ver tu perfil</div>;
+
+      return (
+        <div className="p-4 bg-white">
+          <h1 className="text-2xl text-[#6C63FF] mb-4">Perfil</h1>
+          <p>Correo: {user.email}</p>
+          <button onClick={logout} className="admin-button mt-4">
+            Cerrar Sesión
+          </button>
+        </div>
+      );
+    };
+
+    export default Perfil;
+    ```
+
+34. **client/src/pages/Admin.tsx**  
+    **Propósito**: Entrada al panel de administración, restringida a admins.  
+    **Contenido**:
+    ```
+    import React from 'react';
+    import { useAutenticacion } from '../hooks/useAutenticacion';
+    import PanelAdmin from '../components/PanelAdmin';
+
+    const Admin: React.FC = () => {
+      const { user, loading } = useAutenticacion();
+
+      if (loading) return <div className="p-4 bg-white">Cargando...</div>;
+      if (!user || !user.es_administrador) return <div className="p-4 bg-white">Acceso denegado</div>;
+
+      return (
+        <div>
+          <PanelAdmin />
+        </div>
+      );
+    };
+
+    export default Admin;
+    ```
+
+35. **client/package.json**  
+    **Propósito**: Define las dependencias y scripts para el frontend.  
+    **Contenido**:
+    ```
+    {
+      "name": "kivo-client",
+      "version": "1.0.0",
+      "scripts": {
+        "dev": "vite",
+        "build": "tsc && vite build",
+        "preview": "vite preview"
+      },
+      "dependencies": {
+        "react": "^18.2.0",
+        "react-dom": "^18.2.0",
+        "react-router-dom": "^6.11.0",
+        "@supabase/supabase-js": "^2.39.0",
+        "qrcode": "^1.5.1",
+        "jspdf": "^2.5.1",
+        "jsqr": "^1.4.0",
+        "date-fns": "^2.30.0",
+        "zod": "^3.22.4"
+      },
+      "devDependencies": {
+        "@vitejs/plugin-react": "^4.0.0",
+        "vite": "^4.4.0",
+        "typescript": "^5.0.0",
+        "tailwindcss": "^3.3.0",
+        "autoprefixer": "^10.4.0",
+        "postcss": "^8.4.0"
+      }
+    }
+    ```
+
+36. **client/tsconfig.json**  
+    **Propósito**: Configura TypeScript para el frontend.  
+    **Contenido**:
+    ```
+    {
+      "compilerOptions": {
+        "target": "ESNext",
+        "useDefineForClassFields": true,
+        "lib": ["DOM", "DOM.Iterable", "ESNext"],
+        "allowJs": false,
+        "skipLibCheck": true,
+        "esModuleInterop": true,
+        "allowSyntheticDefaultImports": true,
+        "strict": true,
+        "forceConsistentCasingInFileNames": true,
+        "module": "ESNext",
+        "moduleResolution": "Node",
+        "resolveJsonModule": true,
+        "isolatedModules": true,
+        "noEmit": true,
+        "jsx": "react-jsx"
+      },
+      "include": ["src"]
+    }
+    ```
+
+37. **client/src/assets/logo.svg**  
+    **Propósito**: Logo de KIVO Store (SVG simple con texto "KIVO" en violeta).  
+    **Contenido** (crear manualmente o con una herramienta SVG):  
+    - Un archivo SVG con el texto "KIVO" en fuente Arial, color violeta (#6C63FF), fondo transparente, tamaño 100x50 píxeles.
+
+38. **client/src/assets/imagen_por_defecto.png**  
+    **Propósito**: Imagen de respaldo para productos sin URL de imagen.  
+    **Contenido**: Crear manualmente una imagen PNG (por ejemplo, un placeholder gris con texto "Sin Imagen" en violeta, 200x200 píxeles).
+
+---
+
+### Notas Adicionales
+
+- **Imágenes en la Base de Datos**:
+  - La tabla `imagenes_productos` tiene columnas: `id`, `producto_id`, `url_imagen` (la URL de Cloudinary, ej. `https://res.cloudinary.com/kivo/image/upload/...`), `es_principal` (boolean).
+  - Solo se guarda la **URL** retornada por Supabase Storage (usando el bucket `imagenes`).
+  - En la vista, la imagen se carga con `<img src={url_imagen} />` en componentes como `TarjetaProducto.tsx` y `Carrito.tsx`.
+  - Si no hay URL (o está vacía), usa `/assets/imagen_por_defecto.png`.
+
+- **Supabase Storage**:
+  - Usa el bucket `imagenes` con carpeta `kivo/productos`.
+  - Las URLs son públicas para facilitar la carga en `<img>` (ej. `${VITE_SUPABASE_URL}/storage/v1/object/public/imagenes/kivo/productos/...`).
+
+- **README.md**:
+  - Instrucciones para:
+    - Clonar el repositorio.
+    - Configurar Supabase (crear proyecto, cargar `esquema.sql`, configurar bucket `imagenes`).
+    - Configurar Cloudinary (crear preset sin firmar para `kivo/productos`).
+    - Desplegar frontend en Vercel (`npm run build`, subir `client`).
+    - Desplegar backend en Render (`render.yaml`, configurar variables de entorno).
+    - Configurar impresora térm
