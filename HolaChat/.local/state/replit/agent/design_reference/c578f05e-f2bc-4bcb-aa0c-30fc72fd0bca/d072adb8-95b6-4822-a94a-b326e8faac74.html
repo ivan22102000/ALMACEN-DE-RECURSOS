@@ -1,0 +1,853 @@
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KIVO Store - Tienda Online Bolivia</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+    tailwind.config = {
+        theme: {
+            extend: {
+                borderRadius: {
+                    lg: "var(--radius)",
+                    md: "calc(var(--radius) - 2px)",
+                    sm: "calc(var(--radius) - 4px)",
+                },
+                colors: {
+                    background: "var(--background)",
+                    foreground: "var(--foreground)",
+                    card: {
+                        DEFAULT: "var(--card)",
+                        foreground: "var(--card-foreground)",
+                    },
+                    primary: {
+                        DEFAULT: "var(--primary)",
+                        foreground: "var(--primary-foreground)",
+                    },
+                    secondary: {
+                        DEFAULT: "var(--secondary)",
+                        foreground: "var(--secondary-foreground)",
+                    },
+                    muted: {
+                        DEFAULT: "var(--muted)",
+                        foreground: "var(--muted-foreground)",
+                    },
+                    accent: {
+                        DEFAULT: "var(--accent)",
+                        foreground: "var(--accent-foreground)",
+                    },
+                    destructive: {
+                        DEFAULT: "var(--destructive)",
+                        foreground: "var(--destructive-foreground)",
+                    },
+                    border: "var(--border)",
+                    input: "var(--input)",
+                    ring: "var(--ring)",
+                },
+                fontFamily: {
+                    sans: ["Arial", "sans-serif"],
+                }
+            },
+        }
+    };
+    </script>
+    <style>
+        :root {
+            --background: hsl(0 0% 100%);
+            --foreground: hsl(222.2 84% 4.9%);
+            --card: hsl(0 0% 100%);
+            --card-foreground: hsl(222.2 84% 4.9%);
+            --primary: hsl(249 82% 69%);
+            --primary-foreground: hsl(210 40% 98%);
+            --secondary: hsl(210 40% 96%);
+            --secondary-foreground: hsl(222.2 84% 4.9%);
+            --muted: hsl(210 40% 96%);
+            --muted-foreground: hsl(215.4 16.3% 46.9%);
+            --accent: hsl(210 40% 96%);
+            --accent-foreground: hsl(222.2 84% 4.9%);
+            --destructive: hsl(0 84.2% 60.2%);
+            --destructive-foreground: hsl(210 40% 98%);
+            --border: hsl(214.3 31.8% 91.4%);
+            --input: hsl(214.3 31.8% 91.4%);
+            --ring: hsl(249 82% 69%);
+            --radius: 0.5rem;
+        }
+        
+        .kivo-violet { color: #6C63FF; }
+        .bg-kivo-violet { background-color: #6C63FF; }
+        .border-kivo-violet { border-color: #6C63FF; }
+        .timer-badge { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        
+        /* Custom animations */
+        @keyframes slideIn {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+        
+        .slide-in { animation: slideIn 0.3s ease-out; }
+        
+        /* Mobile table responsive */
+        @media (max-width: 768px) {
+            .admin-table-mobile td:not(.mobile-visible) {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body class="bg-background font-sans">
+    <!-- @COMPONENT: Navigation -->
+    <nav class="bg-white shadow-sm border-b border-border sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <!-- Logo -->
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <span class="text-2xl font-bold kivo-violet">KIVO</span>
+                        <span class="text-sm text-muted-foreground ml-2">Store</span>
+                    </div>
+                </div>
+                
+                <!-- Navigation Links -->
+                <div class="hidden md:block">
+                    <div class="ml-10 flex items-baseline space-x-4">
+                        <a href="#inicio" class="kivo-violet hover:text-primary/80 px-3 py-2 text-sm font-medium">Inicio</a>
+                        <a href="#productos" class="text-muted-foreground hover:kivo-violet px-3 py-2 text-sm font-medium">Productos</a>
+                        <a href="#ofertas" class="text-muted-foreground hover:kivo-violet px-3 py-2 text-sm font-medium">Ofertas</a>
+                        <a href="#canje" class="text-muted-foreground hover:kivo-violet px-3 py-2 text-sm font-medium">Canjear Fichas</a>
+                    </div>
+                </div>
+                
+                <!-- Cart and Admin -->
+                <div class="flex items-center space-x-4">
+                    <button class="relative p-2 text-muted-foreground hover:kivo-violet">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4m1.6 8L5 3H3m4 10v6a1 1 0 001 1h9a1 1 0 001-1v-6M9 19v2m6-2v2"></path>
+                        </svg>
+                        <span class="absolute -top-2 -right-2 bg-kivo-violet text-white text-xs rounded-full h-5 w-5 flex items-center justify-center" data-bind="cartCount">3</span>
+                    </button>
+                    <button class="bg-kivo-violet text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-primary/90" onclick="openAdminPanel()">
+                        Admin
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+    <!-- @END_COMPONENT: Navigation -->
+
+    <!-- @COMPONENT: Hero Section -->
+    <section id="inicio" class="bg-gradient-to-r from-primary/10 to-accent/20 py-16">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center">
+                <h1 class="text-4xl md:text-6xl font-bold text-foreground mb-6">
+                    Bienvenido a <span class="kivo-violet">KIVO Store</span>
+                </h1>
+                <p class="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
+                    Tu tienda online favorita en Bolivia. Productos de calidad con nuestro sistema de fichas de fidelidad.
+                </p>
+                <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                    <button class="bg-kivo-violet text-white px-8 py-3 rounded-lg text-lg font-medium hover:bg-primary/90 transition-colors">
+                        Ver Productos
+                    </button>
+                    <button class="border-2 border-kivo-violet kivo-violet px-8 py-3 rounded-lg text-lg font-medium hover:bg-primary hover:text-white transition-colors">
+                        Canjear Fichas
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+    <!-- @END_COMPONENT: Hero Section -->
+
+    <!-- @COMPONENT: Promotional Banner -->
+    <section class="bg-kivo-violet text-white py-4">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-center space-x-2">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z" clip-rule="evenodd"></path>
+                </svg>
+                <span class="font-medium">¡Ofertas especiales por tiempo limitado! Hasta 50% de descuento</span>
+                <div id="promocion-timer" class="font-bold" data-bind="promoTimer">2d 14h</div>
+            </div>
+        </div>
+    </section>
+    <!-- @END_COMPONENT: Promotional Banner -->
+
+    <!-- @COMPONENT: Featured Products with Timers -->
+    <section id="ofertas" class="py-16 bg-background">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl font-bold text-foreground mb-4">Ofertas del Día</h2>
+                <p class="text-muted-foreground">Aprovecha estos descuentos antes de que terminen</p>
+            </div>
+            
+            <!-- @MAP: featuredProducts.map(product => ( -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <!-- Product Card 1 -->
+                <!-- @COMPONENT: TarjetaProducto [with timer badge] -->
+                <div class="bg-card rounded-lg shadow-sm border border-border overflow-hidden hover:shadow-md transition-shadow group">
+                    <div class="relative">
+                        <!-- Timer Badge - positioned absolutely in top-right -->
+                        <div class="absolute top-2 right-2 z-10">
+                            <div class="bg-kivo-violet text-white px-2 py-1 rounded text-xs font-bold timer-badge">
+                                <span data-bind="product.timeRemaining">2d 5h</span>
+                            </div>
+                        </div>
+                        <!-- Stylish smartphone in modern minimalist setting -->
+                        <img src="https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=300" 
+                             alt="Smartphone moderno" 
+                             class="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300" 
+                             data-mock="true" />
+                        <div class="absolute top-2 left-2">
+                            <span class="bg-destructive text-destructive-foreground px-2 py-1 rounded text-xs font-bold">
+                                -30%
+                            </span>
+                        </div>
+                    </div>
+                    <div class="p-4">
+                        <h3 class="font-semibold text-foreground mb-2" data-bind="product.name">Smartphone Galaxy Pro</h3>
+                        <p class="text-muted-foreground text-sm mb-3" data-bind="product.description">Pantalla AMOLED 6.5", 128GB almacenamiento</p>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-2">
+                                <span class="text-muted-foreground line-through text-sm" data-bind="product.originalPrice">850 BOB</span>
+                                <span class="text-lg font-bold kivo-violet" data-bind="product.salePrice">595 BOB</span>
+                            </div>
+                            <button class="bg-kivo-violet text-white px-3 py-1.5 rounded text-sm hover:bg-primary/90 transition-colors" data-event="click:addToCart">
+                                Agregar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <!-- @END_COMPONENT: TarjetaProducto -->
+
+                <!-- Product Card 2 -->
+                <div class="bg-card rounded-lg shadow-sm border border-border overflow-hidden hover:shadow-md transition-shadow group">
+                    <div class="relative">
+                        <div class="absolute top-2 right-2 z-10">
+                            <div class="bg-kivo-violet text-white px-2 py-1 rounded text-xs font-bold timer-badge">
+                                <span data-bind="product.timeRemaining">1d 12h</span>
+                            </div>
+                        </div>
+                        <!-- Modern laptop on clean white desk with coffee -->
+                        <img src="https://images.unsplash.com/photo-1496181133206-80ce9b88a853?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=300" 
+                             alt="Laptop moderna" 
+                             class="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300" 
+                             data-mock="true" />
+                        <div class="absolute top-2 left-2">
+                            <span class="bg-destructive text-destructive-foreground px-2 py-1 rounded text-xs font-bold">
+                                -25%
+                            </span>
+                        </div>
+                    </div>
+                    <div class="p-4">
+                        <h3 class="font-semibold text-foreground mb-2">Laptop UltraBook Pro</h3>
+                        <p class="text-muted-foreground text-sm mb-3">Intel i7, 16GB RAM, SSD 512GB</p>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-2">
+                                <span class="text-muted-foreground line-through text-sm">2800 BOB</span>
+                                <span class="text-lg font-bold kivo-violet">2100 BOB</span>
+                            </div>
+                            <button class="bg-kivo-violet text-white px-3 py-1.5 rounded text-sm hover:bg-primary/90 transition-colors">
+                                Agregar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Product Card 3 -->
+                <div class="bg-card rounded-lg shadow-sm border border-border overflow-hidden hover:shadow-md transition-shadow group">
+                    <div class="relative">
+                        <div class="absolute top-2 right-2 z-10">
+                            <div class="bg-kivo-violet text-white px-2 py-1 rounded text-xs font-bold timer-badge">
+                                <span data-bind="product.timeRemaining">3d 8h</span>
+                            </div>
+                        </div>
+                        <!-- Wireless headphones on wooden surface -->
+                        <img src="https://images.unsplash.com/photo-1505740420928-5e560c06d30e?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=300" 
+                             alt="Audífonos inalámbricos" 
+                             class="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300" 
+                             data-mock="true" />
+                        <div class="absolute top-2 left-2">
+                            <span class="bg-destructive text-destructive-foreground px-2 py-1 rounded text-xs font-bold">
+                                -40%
+                            </span>
+                        </div>
+                    </div>
+                    <div class="p-4">
+                        <h3 class="font-semibold text-foreground mb-2">Audífonos Wireless</h3>
+                        <p class="text-muted-foreground text-sm mb-3">Cancelación de ruido, 30h batería</p>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-2">
+                                <span class="text-muted-foreground line-through text-sm">450 BOB</span>
+                                <span class="text-lg font-bold kivo-violet">270 BOB</span>
+                            </div>
+                            <button class="bg-kivo-violet text-white px-3 py-1.5 rounded text-sm hover:bg-primary/90 transition-colors">
+                                Agregar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Product Card 4 -->
+                <div class="bg-card rounded-lg shadow-sm border border-border overflow-hidden hover:shadow-md transition-shadow group">
+                    <div class="relative">
+                        <div class="absolute top-2 right-2 z-10">
+                            <div class="bg-kivo-violet text-white px-2 py-1 rounded text-xs font-bold timer-badge">
+                                <span data-bind="product.timeRemaining">4d 2h</span>
+                            </div>
+                        </div>
+                        <!-- Smartwatch on wrist with modern design -->
+                        <img src="https://images.unsplash.com/photo-1523275335684-37898b6baf30?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=300" 
+                             alt="Smartwatch" 
+                             class="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300" 
+                             data-mock="true" />
+                        <div class="absolute top-2 left-2">
+                            <span class="bg-destructive text-destructive-foreground px-2 py-1 rounded text-xs font-bold">
+                                -35%
+                            </span>
+                        </div>
+                    </div>
+                    <div class="p-4">
+                        <h3 class="font-semibold text-foreground mb-2">Smartwatch Fitness</h3>
+                        <p class="text-muted-foreground text-sm mb-3">Monitor cardiaco, GPS, resistente al agua</p>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-2">
+                                <span class="text-muted-foreground line-through text-sm">580 BOB</span>
+                                <span class="text-lg font-bold kivo-violet">377 BOB</span>
+                            </div>
+                            <button class="bg-kivo-violet text-white px-3 py-1.5 rounded text-sm hover:bg-primary/90 transition-colors">
+                                Agregar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- @END_MAP -->
+        </div>
+    </section>
+    <!-- @END_COMPONENT: Featured Products with Timers -->
+
+    <!-- @COMPONENT: Loyalty System Section -->
+    <section id="canje" class="py-16 bg-secondary/30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+                <div>
+                    <h2 class="text-3xl font-bold text-foreground mb-6">Sistema de Fichas KIVO</h2>
+                    <p class="text-muted-foreground mb-6">
+                        Gana fichas con cada compra y obtén descuentos exclusivos. Nuestro sistema de fidelidad 
+                        tipo "Bitcoin" te permite acumular puntos y canjearlos fácilmente.
+                    </p>
+                    <div class="space-y-4">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-8 h-8 bg-kivo-violet rounded-full flex items-center justify-center">
+                                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                            </div>
+                            <span class="text-foreground">1 ficha por cada compra realizada</span>
+                        </div>
+                        <div class="flex items-center space-x-3">
+                            <div class="w-8 h-8 bg-kivo-violet rounded-full flex items-center justify-center">
+                                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                            </div>
+                            <span class="text-foreground">5 fichas = 10% de descuento</span>
+                        </div>
+                        <div class="flex items-center space-x-3">
+                            <div class="w-8 h-8 bg-kivo-violet rounded-full flex items-center justify-center">
+                                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                            </div>
+                            <span class="text-foreground">Códigos QR únicos para cada compra</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- @COMPONENT: CanjearFichas -->
+                <div class="bg-card p-8 rounded-lg shadow-sm border border-border">
+                    <h3 class="text-xl font-bold text-foreground mb-6">Canjear Fichas</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-foreground mb-2">
+                                Código de Compra
+                            </label>
+                            <input 
+                                type="text" 
+                                placeholder="KIVO-ABC123" 
+                                class="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+                                data-implementation="Should validate purchase code format"
+                            />
+                        </div>
+                        <button class="w-full bg-kivo-violet text-white py-3 rounded-md font-medium hover:bg-primary/90 transition-colors" data-event="click:validateAndRedeem">
+                            Validar y Canjear
+                        </button>
+                        <div class="text-center">
+                            <span class="text-muted-foreground text-sm">o</span>
+                        </div>
+                        <button class="w-full border-2 border-kivo-violet kivo-violet py-3 rounded-md font-medium hover:bg-primary hover:text-white transition-colors" onclick="openQRScanner()">
+                            Escanear Código QR
+                        </button>
+                    </div>
+                    
+                    <!-- QR Code Display -->
+                    <div class="mt-6 p-4 bg-secondary rounded-lg text-center" data-mock="true">
+                        <p class="text-sm text-muted-foreground mb-2">Ejemplo de código QR de ficha:</p>
+                        <div class="w-24 h-24 bg-white border-2 border-kivo-violet rounded mx-auto flex items-center justify-center">
+                            <!-- QR Code placeholder - in real implementation, this would be generated dynamically -->
+                            <div class="w-20 h-20 bg-gray-800" style="
+                                background-image: 
+                                    linear-gradient(90deg, black 50%, transparent 50%),
+                                    linear-gradient(black 50%, transparent 50%);
+                                background-size: 4px 4px;
+                            "></div>
+                        </div>
+                        <p class="text-xs text-muted-foreground mt-2">KIVO-XYZ789</p>
+                    </div>
+                </div>
+                <!-- @END_COMPONENT: CanjearFichas -->
+            </div>
+        </div>
+    </section>
+    <!-- @END_COMPONENT: Loyalty System Section -->
+
+    <!-- @COMPONENT: Admin Panel Modal -->
+    <div id="adminModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
+                <!-- @COMPONENT: PanelAdmin -->
+                <div class="flex">
+                    <!-- Sidebar -->
+                    <div class="w-64 bg-secondary border-r border-border">
+                        <div class="p-4 border-b border-border">
+                            <h2 class="text-lg font-bold text-foreground">Panel Administrativo</h2>
+                            <p class="text-sm text-muted-foreground">admin@kivo.com</p>
+                        </div>
+                        <nav class="p-4">
+                            <div class="space-y-2">
+                                <button class="w-full text-left px-3 py-2 rounded bg-kivo-violet text-white font-medium" data-tab="pedidos">
+                                    Pedidos
+                                </button>
+                                <button class="w-full text-left px-3 py-2 rounded text-foreground hover:bg-accent" data-tab="fichas">
+                                    Fichas
+                                </button>
+                                <button class="w-full text-left px-3 py-2 rounded text-foreground hover:bg-accent" data-tab="inventario">
+                                    Inventario
+                                </button>
+                                <button class="w-full text-left px-3 py-2 rounded text-foreground hover:bg-accent" data-tab="promociones">
+                                    Promociones
+                                </button>
+                                <button class="w-full text-left px-3 py-2 rounded text-foreground hover:bg-accent" data-tab="ajustes">
+                                    Ajustes
+                                </button>
+                            </div>
+                        </nav>
+                    </div>
+                    
+                    <!-- Main Content -->
+                    <div class="flex-1 p-6 max-h-[90vh] overflow-y-auto">
+                        <!-- Header -->
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="text-xl font-bold text-foreground">Gestión de Pedidos</h3>
+                            <button onclick="closeAdminPanel()" class="text-muted-foreground hover:text-foreground">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        
+                        <!-- @COMPONENT: AdminFichas -->
+                        <div id="admin-content">
+                            <!-- Filters -->
+                            <div class="bg-secondary p-4 rounded-lg mb-6">
+                                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-foreground mb-1">Estado</label>
+                                        <select class="w-full px-3 py-2 border border-input rounded-md">
+                                            <option>Todos</option>
+                                            <option>Pendiente</option>
+                                            <option>Procesando</option>
+                                            <option>Enviado</option>
+                                            <option>Entregado</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-foreground mb-1">Fecha</label>
+                                        <input type="date" class="w-full px-3 py-2 border border-input rounded-md">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-foreground mb-1">Buscar</label>
+                                        <input type="text" placeholder="KIVO-ABC123" class="w-full px-3 py-2 border border-input rounded-md">
+                                    </div>
+                                    <div class="flex items-end">
+                                        <button class="bg-kivo-violet text-white px-4 py-2 rounded-md hover:bg-primary/90">
+                                            Filtrar
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Table -->
+                            <div class="bg-card rounded-lg border border-border overflow-hidden">
+                                <div class="overflow-x-auto">
+                                    <table class="w-full admin-table-mobile">
+                                        <thead class="bg-secondary">
+                                            <tr>
+                                                <th class="px-4 py-3 text-left text-sm font-medium text-foreground mobile-visible">Código</th>
+                                                <th class="px-4 py-3 text-left text-sm font-medium text-foreground mobile-visible">Fecha</th>
+                                                <th class="px-4 py-3 text-left text-sm font-medium text-foreground">Cliente</th>
+                                                <th class="px-4 py-3 text-left text-sm font-medium text-foreground">Total</th>
+                                                <th class="px-4 py-3 text-left text-sm font-medium text-foreground">Ficha</th>
+                                                <th class="px-4 py-3 text-left text-sm font-medium text-foreground">Estado</th>
+                                                <th class="px-4 py-3 text-left text-sm font-medium text-foreground mobile-visible">Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-border">
+                                            <!-- @MAP: orders.map(order => ( -->
+                                            <tr data-mock="true">
+                                                <td class="px-4 py-3 text-sm font-medium text-foreground mobile-visible" data-bind="order.code">KIVO-001</td>
+                                                <td class="px-4 py-3 text-sm text-muted-foreground mobile-visible" data-bind="order.date">15/01/2024</td>
+                                                <td class="px-4 py-3 text-sm text-muted-foreground" data-bind="order.customer">Juan Pérez</td>
+                                                <td class="px-4 py-3 text-sm text-muted-foreground" data-bind="order.total">595 BOB</td>
+                                                <td class="px-4 py-3 text-sm">
+                                                    <span class="bg-accent text-accent-foreground px-2 py-1 rounded text-xs" data-bind="order.chip">ABC123</span>
+                                                </td>
+                                                <td class="px-4 py-3 text-sm">
+                                                    <span class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs" data-bind="order.status">Entregado</span>
+                                                </td>
+                                                <td class="px-4 py-3 text-sm mobile-visible">
+                                                    <div class="flex space-x-2">
+                                                        <button class="bg-kivo-violet text-white px-2 py-1 rounded text-xs hover:bg-primary/90">
+                                                            Generar QR
+                                                        </button>
+                                                        <button class="bg-secondary text-secondary-foreground px-2 py-1 rounded text-xs hover:bg-accent">
+                                                            Canjear
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            <tr data-mock="true">
+                                                <td class="px-4 py-3 text-sm font-medium text-foreground mobile-visible">KIVO-002</td>
+                                                <td class="px-4 py-3 text-sm text-muted-foreground mobile-visible">16/01/2024</td>
+                                                <td class="px-4 py-3 text-sm text-muted-foreground">María García</td>
+                                                <td class="px-4 py-3 text-sm text-muted-foreground">2100 BOB</td>
+                                                <td class="px-4 py-3 text-sm">
+                                                    <span class="text-muted-foreground text-xs">Sin ficha</span>
+                                                </td>
+                                                <td class="px-4 py-3 text-sm">
+                                                    <span class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs">Procesando</span>
+                                                </td>
+                                                <td class="px-4 py-3 text-sm mobile-visible">
+                                                    <div class="flex space-x-2">
+                                                        <button class="bg-kivo-violet text-white px-2 py-1 rounded text-xs hover:bg-primary/90" disabled>
+                                                            Generar QR
+                                                        </button>
+                                                        <button class="bg-secondary text-secondary-foreground px-2 py-1 rounded text-xs hover:bg-accent">
+                                                            Cambiar Estado
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            <tr data-mock="true">
+                                                <td class="px-4 py-3 text-sm font-medium text-foreground mobile-visible">KIVO-003</td>
+                                                <td class="px-4 py-3 text-sm text-muted-foreground mobile-visible">17/01/2024</td>
+                                                <td class="px-4 py-3 text-sm text-muted-foreground">Carlos López</td>
+                                                <td class="px-4 py-3 text-sm text-muted-foreground">270 BOB</td>
+                                                <td class="px-4 py-3 text-sm">
+                                                    <span class="bg-red-100 text-red-800 px-2 py-1 rounded text-xs">Canjeado</span>
+                                                </td>
+                                                <td class="px-4 py-3 text-sm">
+                                                    <span class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">Entregado</span>
+                                                </td>
+                                                <td class="px-4 py-3 text-sm mobile-visible">
+                                                    <div class="flex space-x-2">
+                                                        <button class="bg-gray-100 text-gray-400 px-2 py-1 rounded text-xs" disabled>
+                                                            Canjeado
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            <!-- @END_MAP -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                                
+                                <!-- Pagination -->
+                                <div class="px-6 py-3 bg-secondary border-t border-border">
+                                    <div class="flex items-center justify-between">
+                                        <div class="text-sm text-muted-foreground">
+                                            Mostrando 1-10 de 45 registros
+                                        </div>
+                                        <div class="flex space-x-2">
+                                            <button class="px-3 py-1 border border-input rounded text-sm hover:bg-accent" disabled>
+                                                Anterior
+                                            </button>
+                                            <button class="px-3 py-1 bg-kivo-violet text-white rounded text-sm">
+                                                1
+                                            </button>
+                                            <button class="px-3 py-1 border border-input rounded text-sm hover:bg-accent">
+                                                2
+                                            </button>
+                                            <button class="px-3 py-1 border border-input rounded text-sm hover:bg-accent">
+                                                Siguiente
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- @END_COMPONENT: AdminFichas -->
+                    </div>
+                </div>
+                <!-- @END_COMPONENT: PanelAdmin -->
+            </div>
+        </div>
+    </div>
+    <!-- @END_COMPONENT: Admin Panel Modal -->
+
+    <!-- @COMPONENT: QR Scanner Modal -->
+    <div id="qrScannerModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full">
+                <!-- @COMPONENT: EscanerQR -->
+                <div class="p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-bold text-foreground">Escanear Código QR</h3>
+                        <button onclick="closeQRScanner()" class="text-muted-foreground hover:text-foreground">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    
+                    <!-- Camera placeholder -->
+                    <div class="bg-gray-900 rounded-lg h-64 flex items-center justify-center mb-4" data-implementation="Camera feed will be displayed here">
+                        <div class="text-white text-center">
+                            <svg class="w-16 h-16 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                            </svg>
+                            <p class="text-sm">Apunta la cámara al código QR</p>
+                        </div>
+                        
+                        <!-- QR Scanner overlay -->
+                        <div class="absolute border-2 border-kivo-violet w-48 h-48 rounded-lg" style="box-shadow: 0 0 0 9999px rgba(0,0,0,0.5);"></div>
+                    </div>
+                    
+                    <div class="text-center">
+                        <p class="text-sm text-muted-foreground mb-4">
+                            Coloca el código QR dentro del marco para escanearlo
+                        </p>
+                        <button class="w-full bg-kivo-violet text-white py-2 rounded-md hover:bg-primary/90" onclick="closeQRScanner()">
+                            Cancelar
+                        </button>
+                    </div>
+                </div>
+                <!-- @END_COMPONENT: EscanerQR -->
+            </div>
+        </div>
+    </div>
+    <!-- @END_COMPONENT: QR Scanner Modal -->
+
+    <!-- @COMPONENT: Shopping Cart Drawer -->
+    <div id="cartDrawer" class="fixed inset-y-0 right-0 w-96 bg-white shadow-xl z-50 transform translate-x-full transition-transform duration-300">
+        <div class="h-full flex flex-col">
+            <div class="p-4 border-b border-border">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-bold text-foreground">Carrito de Compras</h3>
+                    <button onclick="closeCart()" class="text-muted-foreground hover:text-foreground">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto p-4" data-mock="true">
+                <!-- Cart items -->
+                <div class="space-y-4">
+                    <div class="flex items-center space-x-3 p-3 border border-border rounded-lg">
+                        <img src="https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?ixlib=rb-4.0.3&auto=format&fit=crop&w=80&h=80" 
+                             alt="Smartphone" class="w-16 h-16 object-cover rounded" />
+                        <div class="flex-1">
+                            <h4 class="font-medium text-foreground">Smartphone Galaxy Pro</h4>
+                            <p class="text-sm text-muted-foreground">595 BOB</p>
+                            <div class="flex items-center space-x-2 mt-1">
+                                <button class="w-6 h-6 bg-secondary rounded text-xs">-</button>
+                                <span class="text-sm">1</span>
+                                <button class="w-6 h-6 bg-secondary rounded text-xs">+</button>
+                            </div>
+                        </div>
+                        <button class="text-destructive hover:text-destructive/80">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="p-4 border-t border-border">
+                <div class="space-y-4">
+                    <div class="flex justify-between items-center">
+                        <span class="font-medium text-foreground">Total:</span>
+                        <span class="text-xl font-bold kivo-violet">595 BOB</span>
+                    </div>
+                    <button class="w-full bg-kivo-violet text-white py-3 rounded-md font-medium hover:bg-primary/90">
+                        Proceder al Pago
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- @END_COMPONENT: Shopping Cart Drawer -->
+
+    <!-- @COMPONENT: Footer -->
+    <footer class="bg-secondary py-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+                <div>
+                    <h3 class="text-lg font-bold text-foreground mb-4">KIVO Store</h3>
+                    <p class="text-muted-foreground">Tu tienda online favorita en Bolivia con el mejor sistema de fidelidad.</p>
+                </div>
+                <div>
+                    <h4 class="font-medium text-foreground mb-4">Navegación</h4>
+                    <ul class="space-y-2 text-muted-foreground">
+                        <li><a href="#" class="hover:kivo-violet">Inicio</a></li>
+                        <li><a href="#" class="hover:kivo-violet">Productos</a></li>
+                        <li><a href="#" class="hover:kivo-violet">Ofertas</a></li>
+                        <li><a href="#" class="hover:kivo-violet">Canjear Fichas</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="font-medium text-foreground mb-4">Soporte</h4>
+                    <ul class="space-y-2 text-muted-foreground">
+                        <li><a href="#" class="hover:kivo-violet">Ayuda</a></li>
+                        <li><a href="#" class="hover:kivo-violet">Términos</a></li>
+                        <li><a href="#" class="hover:kivo-violet">Privacidad</a></li>
+                        <li><a href="#" class="hover:kivo-violet">Contacto</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="font-medium text-foreground mb-4">Síguenos</h4>
+                    <div class="flex space-x-4">
+                        <a href="#" class="text-muted-foreground hover:kivo-violet">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-3.179 0-5.515 2.966-4.797 6.045-4.091-.205-7.719-2.165-10.148-5.144-1.29 2.213-.669 5.108 1.523 6.574-.806-.026-1.566-.247-2.229-.616-.054 2.281 1.581 4.415 3.949 4.89-.693.188-1.452.232-2.224.084.626 1.956 2.444 3.379 4.6 3.419-2.07 1.623-4.678 2.348-7.29 2.04 2.179 1.397 4.768 2.212 7.548 2.212 9.142 0 14.307-7.721 13.995-14.646.962-.695 1.797-1.562 2.457-2.549z"/>
+                            </svg>
+                        </a>
+                        <a href="#" class="text-muted-foreground hover:kivo-violet">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M22.46 6c-.77.35-1.6.58-2.46.69.88-.53 1.56-1.37 1.88-2.38-.83.5-1.75.85-2.72 1.05C18.37 4.5 17.26 4 16 4c-2.35 0-4.27 1.92-4.27 4.29 0 .34.04.67.11.98C8.28 9.09 5.11 7.38 3 4.79c-.37.63-.58 1.37-.58 2.15 0 1.49.75 2.81 1.91 3.56-.71 0-1.37-.2-1.95-.5v.03c0 2.08 1.48 3.82 3.44 4.21a4.22 4.22 0 0 1-1.93.07 4.28 4.28 0 0 0 4 2.98 8.521 8.521 0 0 1-5.33 1.84c-.34 0-.68-.02-1.02-.06C3.44 20.29 5.7 21 8.12 21 16 21 20.33 14.46 20.33 8.79c0-.19 0-.37-.01-.56.84-.6 1.56-1.36 2.14-2.23z"/>
+                            </svg>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-8 pt-8 border-t border-border text-center text-muted-foreground">
+                <p>&copy; 2024 KIVO Store. Todos los derechos reservados.</p>
+            </div>
+        </div>
+    </footer>
+    <!-- @END_COMPONENT: Footer -->
+
+    <script>
+        // @STATE: isAdminPanelOpen:boolean = false
+        // @STATE: isQRScannerOpen:boolean = false
+        // @STATE: isCartOpen:boolean = false
+        
+        (function() {
+            // TODO: Implement business logic, API calls, and state management
+            
+            // Admin Panel Functions
+            window.openAdminPanel = function() {
+                document.getElementById('adminModal').classList.remove('hidden');
+                // @FUNCTIONALITY: Should authenticate admin user and load admin data
+            };
+            
+            window.closeAdminPanel = function() {
+                document.getElementById('adminModal').classList.add('hidden');
+            };
+            
+            // QR Scanner Functions
+            window.openQRScanner = function() {
+                document.getElementById('qrScannerModal').classList.remove('hidden');
+                // @FUNCTIONALITY: Should initialize camera for QR code scanning
+            };
+            
+            window.closeQRScanner = function() {
+                document.getElementById('qrScannerModal').classList.add('hidden');
+            };
+            
+            // Cart Functions
+            window.openCart = function() {
+                const cartDrawer = document.getElementById('cartDrawer');
+                cartDrawer.classList.remove('translate-x-full');
+            };
+            
+            window.closeCart = function() {
+                const cartDrawer = document.getElementById('cartDrawer');
+                cartDrawer.classList.add('translate-x-full');
+            };
+            
+            // Timer functionality for promotional badges
+            // @FUNCTIONALITY: This should implement useTemporizadorPromo.ts hook logic
+            function updatePromotionalTimers() {
+                const timerElements = document.querySelectorAll('[data-bind*="timeRemaining"]');
+                timerElements.forEach(element => {
+                    // TODO: Calculate actual time remaining from promotion end date
+                    // Format: "Xd Yh" (days, hours)
+                    // Update every hour as specified in requirements
+                });
+            }
+            
+            // Initialize timers
+            updatePromotionalTimers();
+            
+            // Update timers every hour (3600000 ms)
+            setInterval(updatePromotionalTimers, 3600000);
+            
+            // Tab functionality for admin panel
+            document.addEventListener('click', function(e) {
+                if (e.target.matches('[data-tab]')) {
+                    const tabName = e.target.getAttribute('data-tab');
+                    
+                    // Remove active class from all tabs
+                    document.querySelectorAll('[data-tab]').forEach(tab => {
+                        tab.classList.remove('bg-kivo-violet', 'text-white');
+                        tab.classList.add('text-foreground', 'hover:bg-accent');
+                    });
+                    
+                    // Add active class to clicked tab
+                    e.target.classList.add('bg-kivo-violet', 'text-white');
+                    e.target.classList.remove('text-foreground', 'hover:bg-accent');
+                    
+                    // TODO: Load appropriate admin content based on tab
+                    // @FUNCTIONALITY: Should switch between AdminFichas, AdminInventario, AdminAjustes, etc.
+                }
+            });
+            
+            // Cart icon click handler
+            document.querySelector('[data-bind="cartCount"]').parentElement.addEventListener('click', openCart);
+            
+            // Close modals when clicking outside
+            document.addEventListener('click', function(e) {
+                if (e.target.matches('#adminModal')) {
+                    closeAdminPanel();
+                }
+                if (e.target.matches('#qrScannerModal')) {
+                    closeQRScanner();
+                }
+            });
+            
+            // Escape key to close modals
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    closeAdminPanel();
+                    closeQRScanner();
+                    closeCart();
+                }
+            });
+        })();
+    </script>
+</body>
+</html>
