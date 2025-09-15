@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retro Racing Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: url('https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQTzBAjqGsAKphikvQxgINyzEsOD2_MUHbZWInrg5lAf0-mR8cKomkab9Or-JW3gJZaHgk&usqp=CAU') no-repeat center center fixed;
+            background-size: cover;
+            color: white;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+            margin: auto;
+            border: 2px solid white;
+            background: rgba(0,0,0,0.6);
+            position: relative;
+            z-index: 2;
+        }
+        .game-container {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .game-container h1 {
+            color: yellow;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>Retro Racing Game</h1>
+        <canvas id="racing" width="400" height="600"></canvas>
+        <p>Use Left and Right Arrow keys or A/D to steer!</p>
+    </div>
+    <script>
+        const canvas = document.getElementById('racing');
+        const context = canvas.getContext('2d');
+
+        // Images (optional). Game will work even if they fail to load.
+        const carImage = new Image();
+        carImage.src = 'data:image/jpeg;base64,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';
+        const obstacleImage = new Image();
+        obstacleImage.src = 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/Blue_car_top_view.svg/1200px-Blue_car_top_view.svg.png';
+
+        // Lanes (x positions)
+        const lanes = [40, 160, 280];
+
+        // Player state
+        let player = {
+            laneIndex: 1,
+            x: lanes[1],
+            y: canvas.height - 140,
+            width: 40,
+            height: 80,
+            targetX: lanes[1],
+            velocity: 0
+        };
+
+        let obstacles = [];
+        let score = 0;
+        let lives = 3;
+        let gameOver = false;
+        let obstacleTimer = null;
+        let collisionCooldown = false;
+
+        // Crash sound (from provided instant). If the direct file doesn't load, the code will silently fail.
+        const crashSound = new Audio('https://www.myinstants.com/media/sounds/ahhhhhh-minionoslo-35563.mp3');
+        crashSound.preload = 'auto';
+        crashSound.volume = 0.9;
+
+        function drawPlayer() {
+            const drawX = player.x;
+            if (carImage.complete && carImage.naturalWidth !== 0) {
+                context.drawImage(carImage, drawX, player.y, player.width, player.height);
+            } else {
+                context.fillStyle = 'red';
+                context.fillRect(drawX, player.y, player.width, player.height);
+            }
+        }
+
+        function drawObstacle(obstacle) {
+            if (obstacleImage.complete && obstacleImage.naturalWidth !== 0) {
+                context.drawImage(obstacleImage, obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+            } else {
+                context.fillStyle = 'white';
+                context.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+            }
+        }
+
+        function createObstacle() {
+            const lane = lanes[Math.floor(Math.random() * lanes.length)];
+            obstacles.push({ x: lane, y: -100, width: 40, height: 80 });
+        }
+
+        function updateObstacles() {
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                obstacles[i].y += 5; // obstacle speed
+                if (obstacles[i].y > canvas.height) {
+                    obstacles.splice(i, 1);
+                    score++;
+                }
+                if (!collisionCooldown &&
+                    player.x < obstacles[i].x + obstacles[i].width &&
+                    player.x + player.width > obstacles[i].x &&
+                    player.y < obstacles[i].y + obstacles[i].height &&
+                    player.y + player.height > obstacles[i].y
+                ) {
+                    // collision detected
+                    lives--;
+                    try { crashSound.currentTime = 0; crashSound.play().catch(()=>{}); } catch(e) {}
+                    collisionCooldown = true;
+                    setTimeout(() => { collisionCooldown = false; }, 500);
+                    if (lives <= 0) {
+                        gameOver = true;
+                        // wait for any key to restart
+                        document.addEventListener('keydown', restartOnKey, { once: true });
+                        clearInterval(obstacleTimer);
+                    }
+                }
+            }
+        }
+
+        function drawScore() {
+            context.fillStyle = 'white';
+            context.font = '20px Arial';
+            context.fillText(`Score: ${score}`, 10, 30);
+            context.fillText(`Lives: ${lives}`, 10, 60);
+        }
+
+        function drawGameOver() {
+            context.fillStyle = 'red';
+            context.font = '40px Arial';
+            context.fillText('GAME OVER', canvas.width / 2 - 100, canvas.height / 2 - 20);
+            context.font = '20px Arial';
+            context.fillText('Press any key to restart', canvas.width / 2 - 110, canvas.height / 2 + 20);
+        }
+
+        function handleInputKeyDown(e) {
+            const key = e.key.toLowerCase();
+            if (key === 'arrowleft' || key === 'a') {
+                moveLeft();
+            } else if (key === 'arrowright' || key === 'd') {
+                moveRight();
+            }
+        }
+
+        function restartOnKey() {
+            // reset state and start again
+            lives = 3;
+            score = 0;
+            obstacles = [];
+            gameOver = false;
+            collisionCooldown = false;
+            player.laneIndex = 1;
+            player.x = lanes[1];
+            player.targetX = lanes[1];
+            // restart obstacle timer and game loop
+            obstacleTimer = setInterval(createObstacle, 1500);
+            requestAnimationFrame(gameLoop);
+        }
+
+        function moveLeft() {
+            player.laneIndex = Math.max(0, player.laneIndex - 1);
+            player.targetX = lanes[player.laneIndex];
+        }
+
+        function moveRight() {
+            player.laneIndex = Math.min(lanes.length - 1, player.laneIndex + 1);
+            player.targetX = lanes[player.laneIndex];
+        }
+
+        // Smoothly interpolate player.x towards targetX
+        function updatePlayerPosition() {
+            const dx = player.targetX - player.x;
+            player.velocity = dx * 0.25; // smoothing factor
+            if (Math.abs(dx) < 0.5) player.x = player.targetX;
+            else player.x += player.velocity;
+        }
+
+        function update() {
+            if (gameOver) {
+                drawGameOver();
+                return;
+            }
+
+            updatePlayerPosition();
+            updateObstacles();
+
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            drawPlayer();
+            obstacles.forEach(drawObstacle);
+            drawScore();
+        }
+
+        function gameLoop() {
+            update();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function startGame() {
+            // clear previous state
+            obstacles = [];
+            score = 0;
+            lives = 3;
+            gameOver = false;
+            player.laneIndex = 1;
+            player.targetX = lanes[1];
+            player.x = lanes[1];
+
+            // create a few obstacles immediately
+            for (let i = 0; i < 3; i++) {
+                const o = { x: lanes[Math.floor(Math.random() * lanes.length)], y: -100 - i * 120, width: 40, height: 80 };
+                obstacles.push(o);
+            }
+
+            if (obstacleTimer) clearInterval(obstacleTimer);
+            obstacleTimer = setInterval(createObstacle, 1500);
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Event listeners
+        document.addEventListener('keydown', handleInputKeyDown);
+
+        // Start right away (images are optional)
+        startGame();
+    </script>
+</body>
+</html>
